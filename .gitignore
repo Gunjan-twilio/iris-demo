@@ -13,5 +13,8 @@ functions/.twiliodeployinfo
 # Vite build output
 frontend/dist/
 
+# Deployed assets (generated from frontend/dist)
+functions/assets/
+
 # OS
 .DS_Store

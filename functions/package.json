@@ -1,0 +1,8 @@
+{
+  "name": "iris-walmart-functions",
+  "version": "1.0.0",
+  "dependencies": {
+    "airtable": "^0.12.2",
+    "twilio": "^5.3.0"
+  }
+}

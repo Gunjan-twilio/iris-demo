@@ -1,0 +1,5 @@
+{
+  "serviceName": "iris-demo",
+  "functionsFolder": "functions",
+  "assetsFolder": "assets"
+}

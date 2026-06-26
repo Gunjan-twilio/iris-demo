@@ -29,25 +29,76 @@
 2. Name it `IRIS-Demo`
 3. Note down `WORKSPACE_SID` (starts with `WS`)
 
+**Before creating queues — create two Activities:**
+
+Go to your workspace → Activities → Create Activity:
+
+| Name | Availability |
+|---|---|
+| `Reserved` | Unavailable |
+| `Busy` | Unavailable |
+
+These must exist before you can configure the queues below.
+
 **Create two Task Queues inside the workspace:**
-- Queue 1: `payments-queue` — filter: `skill == "payments"`
-- Queue 2: `listings-queue` — filter: `skill == "listings"`
+
+For each queue:
+- **Reservation Activity** → `Reserved`
+- **Assignment Activity** → `Busy`
+- **Max Reserved Workers** → `1`
+
+Queue 1:
+- Name: `payments-queue`
+- Target Workers Expression: `routing.skills HAS "payments"`
+
+Queue 2:
+- Name: `listings-queue`
+- Target Workers Expression: `routing.skills HAS "listings"`
 
 **Create one Workflow:**
-- Name: `iris-routing`
-- Routing logic: match `task.skill` to the appropriate queue
-- Note down `WORKFLOW_SID` (starts with `WW`)
+
+1. Workspace → Workflows → Create Workflow
+2. Name: `iris-routing`
+3. Under **Routing Steps**, add two steps:
+
+Step 1 — Payments:
+- Filter expression: `task.skill == "payments"`
+- Queue: `payments-queue`
+- Leave **Known Workers** blank
+
+Step 2 — Listings:
+- Filter expression: `task.skill == "listings"`
+- Queue: `listings-queue`
+- Leave **Known Workers** blank
+
+4. Note down `WORKFLOW_SID` (starts with `WW`)
+
+> The workflow evaluates steps top to bottom and sends the task to the first queue whose filter matches. The `task.skill` value is set by your backend when a seller submits a case.
 
 **Create one Worker (simulates an associate):**
-- Name: `Associate-1`
-- Attributes: `{"skills": ["payments", "listings"], "contact_uri": "client:associate1"}`
-- Note down `WORKER_SID` (starts with `WK`)
+
+1. Workspace → Workers → Create Worker
+2. Fill in:
+
+| Field | Value |
+|---|---|
+| Name | `Associate-1` |
+| Activity | `Offline` |
+| Attributes | `{"routing": {"skills": ["payments", "listings"]}, "contact_uri": "client:associate1"}` |
+
+3. Note down `WORKER_SID` (starts with `WK`)
+
+> The attributes must use the nested `routing.skills` structure to match the queue expression `routing.skills HAS "payments"`. A flat `{"skills": [...]}` will not match.
+> Activity is set to `Offline` by default — the associate will go `Available` from the IRIS UI when the demo runs.
 
 ---
 
 ## Step 3: Create a Conversations Service
 
-1. Console → Conversations → Services → Create Service
+1. Console → **Conversations Classic** → Services → Create Service
+
+> Despite the "Classic" label, this is the correct product for live chat in this demo. Twilio reorganized the console around newer AI products (Conversation Intelligence, Conversation Orchestrator) and renamed the standard Conversations API to "Conversations Classic". The SID starting with `IS` is what you need.
+
 2. Name it `iris-conversations`
 3. Note down `CONVERSATIONS_SERVICE_SID` (starts with `IS`)
 
