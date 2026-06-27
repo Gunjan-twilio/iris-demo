@@ -43,7 +43,6 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const [activeCalls, setActiveCalls] = useState({}); // { case_id: VoiceCall }
   const [placeholderTasks, setPlaceholderTasks] = useState({}); // { case_id: taskSid }
   const openCasesRef = useRef([]);
-  const expectingOutboundRef = useRef(false); // set true just before StartOutboundCall fires
 
   const loadRecentCases = async () => {
     setLoadingRecent(true);
@@ -104,10 +103,11 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     const handleReservation = (res) => {
       const attrs = res.task.attributes;
       console.log('[Reservation] status:', res.status, 'channel:', attrs.channel, 'case_id:', attrs.case_id, 'taskSid:', res.task.sid);
-      // Auto-accept silently: outbound voice media task (tagged by StartOutboundCall), unknown channel, or no case_id
+      // Auto-accept silently: outbound voice task spawned by StartOutboundCall (has originating_case),
+      // explicit outbound direction, unknown channel, or no case_id — none of these need a popup
       const knownChannels = ['chat', 'email', 'phone'];
-      if (attrs.direction === 'outbound' || !attrs.case_id || !knownChannels.includes(attrs.channel)) {
-        console.log('[AutoAccept silent]', attrs.direction === 'outbound' ? 'outbound voice task' : 'unknown task', attrs.case_id);
+      if (attrs.originating_case || attrs.direction === 'outbound' || !attrs.case_id || !knownChannels.includes(attrs.channel)) {
+        console.log('[AutoAccept silent]', attrs.originating_case ? 'outbound call task' : 'unknown task', attrs.case_id);
         res.accept().catch(e => console.warn('[AutoAccept silent]', e.message));
         return;
       }

@@ -91,7 +91,7 @@ export default function SellerPanel({ baseUrl }) {
       try {
         const res = await fetch(`${baseUrl}/get-case?case_id=${activeCase.case_id}`);
         const data = await res.json();
-        setActiveCase(data);
+        setActiveCase(prev => ({ ...prev, ...data, seller_phone: data.seller_phone || prev?.seller_phone || '' }));
         if (data.conversation_sid) setConversationSid(data.conversation_sid);
         setCases(prev => prev.map(c => c.case_id === data.case_id ? { ...c, ...data } : c));
       } catch (e) { console.error(e); }
