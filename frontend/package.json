@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@twilio/conversations": "^2.5.0",
+    "@twilio/flex-sdk": "^4.0.0",
     "@twilio/voice-sdk": "^2.10.0",
+    "graphql": "^16.14.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^7.18.0",

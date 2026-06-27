@@ -17,11 +17,16 @@ exports.handler = async function (context, event, callback) {
         .firstPage();
 
       if (records.length > 0) {
-        await base('Cases').update(records[0].id, {
+        const updates = {
           task_sid: event.TaskSid,
           reservation_sid: event.ReservationSid,
           status: 'new',
-        });
+        };
+        // Interactions API sets conversation_sid in task attributes for email channel
+        if (taskAttrs.conversation_sid) {
+          updates.conversation_sid = taskAttrs.conversation_sid;
+        }
+        await base('Cases').update(records[0].id, updates);
       }
     }
 

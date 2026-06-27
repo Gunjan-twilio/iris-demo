@@ -602,6 +602,34 @@ input:focus, select:focus {
   border-top: 1px solid #f3f4f6;
 }
 
+.email-template-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fafafa;
+}
+
+.email-template-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+  color: #374151;
+  outline: none;
+  cursor: pointer;
+}
+
+.email-template-preview {
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  overflow: hidden;
+}
+
 /* Empty state */
 .empty-state {
   font-size: 13px;

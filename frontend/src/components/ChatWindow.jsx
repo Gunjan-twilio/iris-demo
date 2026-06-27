@@ -1,46 +1,67 @@
 import { useEffect, useState, useRef } from 'react';
-import { Client } from '@twilio/conversations';
+import { GetConversationByTask } from '@twilio/flex-sdk';
+import { Client as ConversationsClient } from '@twilio/conversations';
 
-export default function ChatWindow({ baseUrl, conversationSid, identity, onEnd, caseId, channel, subject, sellerEmail }) {
+export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationSid, identity, onEnd, caseId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [conversation, setConversation] = useState(null);
-  const [client, setClient] = useState(null);
   const bottomRef = useRef(null);
+  const msgListenerRef = useRef(null);
 
   useEffect(() => {
-    let conversationsClient;
+    if (!conversationSid) return;
+    let active = true;
+    let convosClient;
 
-    fetch(`${baseUrl}/token?identity=${identity}`)
-      .then(r => r.json())
-      .then(async data => {
-        conversationsClient = new Client(data.token);
-        setClient(conversationsClient);
+    const initViaFlexSdk = async () => {
+      try {
+        // Associate side — use flex-sdk to get conversation
+        const result = await flexClient.execute(new GetConversationByTask(taskSid));
+        if (!active) return;
+        const convo = result.conversation ?? result;
+        setConversation(convo);
+        const paginator = await convo.getMessages();
+        setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
+        const listener = msg => setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
+        msgListenerRef.current = listener;
+        convo.on('messageAdded', listener);
+      } catch (err) {
+        console.error('Chat init (flex-sdk) error:', err);
+      }
+    };
 
-        conversationsClient.on('stateChanged', async state => {
-          if (state === 'initialized') {
-            const convo = await conversationsClient.getConversationBySid(conversationSid);
-            setConversation(convo);
+    const initViaConversationsClient = async () => {
+      // Seller side — use raw Conversations SDK
+      const res = await fetch(`${baseUrl}/token?identity=${identity}`);
+      const data = await res.json();
+      convosClient = new ConversationsClient(data.token);
+      convosClient.on('stateChanged', async state => {
+        if (state !== 'initialized' || !active) return;
+        const convo = await convosClient.getConversationBySid(conversationSid);
+        setConversation(convo);
+        const paginator = await convo.getMessages();
+        setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
+        const listener = msg => setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
+        msgListenerRef.current = listener;
+        convo.on('messageAdded', listener);
+      });
+    };
 
-            const paginator = await convo.getMessages();
-            setMessages(paginator.items.map(m => ({
-              sid: m.sid,
-              author: m.author,
-              body: m.body,
-            })));
-
-            convo.on('messageAdded', msg => {
-              setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
-            });
-          }
-        });
-      })
-      .catch(err => console.error('Chat init error', err));
+    if (flexClient && taskSid) {
+      initViaFlexSdk();
+    } else {
+      initViaConversationsClient().catch(err => console.error('Chat init (conversations) error:', err));
+    }
 
     return () => {
-      conversationsClient?.shutdown();
+      active = false;
+      convosClient?.shutdown();
+      if (conversation && msgListenerRef.current) {
+        conversation.removeListener('messageAdded', msgListenerRef.current);
+      }
     };
-  }, [conversationSid, identity]);
+  }, [conversationSid, identity, taskSid]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,9 +73,7 @@ export default function ChatWindow({ baseUrl, conversationSid, identity, onEnd, 
     setInput('');
   };
 
-  const handleKey = e => {
-    if (e.key === 'Enter') sendMessage();
-  };
+  const handleKey = e => { if (e.key === 'Enter') sendMessage(); };
 
   const endChat = async (resolve) => {
     if (caseId) {
@@ -71,19 +90,8 @@ export default function ChatWindow({ baseUrl, conversationSid, identity, onEnd, 
     <div className="chat-window">
       {onEnd && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: 'white' }}>
-          <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(false)}>
-            Save &amp; Close
-          </button>
-          <button className="btn btn-success" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(true)}>
-            Resolve
-          </button>
-        </div>
-      )}
-      {channel === 'email' && (
-        <div className="email-meta-header">
-          <div className="email-header-row"><span className="email-label">To</span><span className="email-value">{sellerEmail || 'seller'}</span></div>
-          <div className="email-header-row"><span className="email-label">From</span><span className="email-value">support@retail.dotorg.icu</span></div>
-          <div className="email-header-row"><span className="email-label">Subject</span><span className="email-value">{subject || caseId}</span></div>
+          <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(false)}>Save &amp; Close</button>
+          <button className="btn btn-success" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(true)}>Resolve</button>
         </div>
       )}
       <div className="chat-messages">
@@ -96,12 +104,7 @@ export default function ChatWindow({ baseUrl, conversationSid, identity, onEnd, 
         <div ref={bottomRef} />
       </div>
       <div className="chat-input-row">
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder="Type a message..."
-        />
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Type a message..." />
         <button className="btn btn-primary" onClick={sendMessage}>Send</button>
       </div>
     </div>

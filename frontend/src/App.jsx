@@ -1,35 +1,29 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Device } from '@twilio/voice-sdk';
-import { Worker } from 'twilio-taskrouter';
+import { createClient } from '@twilio/flex-sdk';
 import SellerPanel from './components/SellerPanel.jsx';
 import AssociatePanel from './components/AssociatePanel.jsx';
 
 const BASE_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL;
 
 function AssociatePage() {
-  const [voiceDevice, setVoiceDevice] = useState(null);
-  const [worker, setWorker] = useState(null);
+  const [flexClient, setFlexClient] = useState(null);
 
   useEffect(() => {
     fetch(`${BASE_URL}/token?identity=associate1`)
       .then(r => r.json())
-      .then(data => {
-        const device = new Device(data.token, { logLevel: 1 });
-        device.register();
-        setVoiceDevice(device);
-
-        const trWorker = new Worker(data.token, { logLevel: 'error' });
-        setWorker(trWorker);
+      .then(async data => {
+        const client = await createClient(data.token);
+        setFlexClient(client);
       })
-      .catch(err => console.error('Failed to fetch token', err));
+      .catch(err => console.error('Failed to initialize Flex SDK', err));
   }, []);
 
   return (
     <div className="app">
       <header className="app-header">IRIS — Associate Workstation</header>
       <div className="full-panel">
-        <AssociatePanel baseUrl={BASE_URL} worker={worker} voiceDevice={voiceDevice} />
+        <AssociatePanel baseUrl={BASE_URL} flexClient={flexClient} />
       </div>
     </div>
   );
