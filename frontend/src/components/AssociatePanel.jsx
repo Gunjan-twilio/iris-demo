@@ -222,6 +222,35 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         }),
       });
 
+      if (channel === 'chat') {
+        const initRes = await fetch(`${baseUrl}/initialize-accepted-chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskSid,
+            sellerEmail: pendingAttrs?.seller_email || '',
+            associateIdentity: 'associate1',
+            caseId: pendingAttrs?.case_id,
+          }),
+        });
+        const { conversationSid } = await initRes.json();
+        const attrs = { ...pendingAttrs, conversationSid };
+        setOpenCases(prev => {
+          const exists = prev.find(c => c.case_id === attrs.case_id);
+          if (exists) {
+            return prev.map(c => c.case_id === attrs.case_id
+              ? { ...c, attrs: { ...c.attrs, conversationSid }, taskSid }
+              : c
+            );
+          }
+          return [...prev, { case_id: attrs.case_id, attrs, taskSid }];
+        });
+        setActiveTabId(attrs.case_id);
+        setPendingReservation(null);
+        setPendingAttrs(null);
+        return;
+      }
+
       if (channel === 'phone') {
         const sellerPhone = pendingAttrs?.seller_phone;
         if (sellerPhone) {

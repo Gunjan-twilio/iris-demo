@@ -30,35 +30,18 @@ exports.handler = async function (context, event, callback) {
     let conversation_sid = null;
 
     if (channel === 'chat') {
-      const interaction = await client.flexApi.v1.interaction.create({
-        channel: { type: 'web', initiated_by: 'api' },
-        routing: {
-          properties: {
-            workspaceSid: context.WORKSPACE_SID,
-            workflowSid: context.WORKFLOW_SID,
-            taskChannelUniqueName: 'chat',
-            attributes: {
-              skill: help_category, channel, seller_name,
-              seller_phone: seller_phone || '', seller_email: seller_email || '',
-              case_summary: case_summary || '', case_id,
-            },
-          },
-        },
-      });
-
-      const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
-      conversation_sid = taskAttrs.conversationSid || '';
-
-      if (conversation_sid && seller_email) {
-        try {
-          await client.conversations.v1
-            .services(context.CONVERSATIONS_SERVICE_SID)
-            .conversations(conversation_sid)
-            .participants.create({ identity: seller_email });
-        } catch (e) {
-          if (!e.message?.includes('already exists')) console.error('Add participant error:', e.message);
-        }
-      }
+      await client.taskrouter.v1
+        .workspaces(context.WORKSPACE_SID)
+        .tasks.create({
+          workflowSid: context.WORKFLOW_SID,
+          taskChannel: 'chat',
+          attributes: JSON.stringify({
+            skill: help_category, channel, seller_name,
+            seller_phone: seller_phone || '', seller_email: (seller_email || '').toLowerCase().trim(),
+            case_summary: case_summary || '', case_id,
+            conversationSid: '',
+          }),
+        });
 
     } else if (channel === 'email') {
       const interaction = await client.flexApi.v1.interaction.create({
@@ -70,9 +53,9 @@ exports.handler = async function (context, event, callback) {
         },
         routing: {
           properties: {
-            workspaceSid: context.WORKSPACE_SID,
-            workflowSid: context.WORKFLOW_SID,
-            taskChannelUniqueName: 'email',
+            workspace_sid: context.WORKSPACE_SID,
+            workflow_sid: context.WORKFLOW_SID,
+            task_channel_unique_name: 'email',
             attributes: {
               skill: help_category, channel, seller_name,
               seller_phone: seller_phone || '', seller_email,

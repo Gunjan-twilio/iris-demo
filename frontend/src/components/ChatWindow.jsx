@@ -1,91 +1,61 @@
 import { useEffect, useState, useRef } from 'react';
-import { GetConversationByTask } from '@twilio/flex-sdk';
 import { Client as ConversationsClient } from '@twilio/conversations';
 
 export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationSid, identity, onEnd, caseId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [conversation, setConversation] = useState(null);
+  const [conversationObj, setConversationObj] = useState(null);
   const bottomRef = useRef(null);
-  const msgListenerRef = useRef(null);
+  const clientRef = useRef(null);
 
   useEffect(() => {
-    if (!conversationSid) return;
+    if (!conversationSid || !identity) return;
     let active = true;
-    let convosClient;
 
-    const initViaFlexSdk = async () => {
-      try {
-        const convo = await flexClient.execute(new GetConversationByTask(taskSid));
-        if (!active) return;
-        setConversation(convo);
-        const paginator = await convo.getMessages();
-        setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
-        const listener = msg => setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
-        msgListenerRef.current = listener;
-        convo.conversation.on('messageAdded', listener);
-      } catch (err) {
-        console.error('Chat init (flex-sdk) error:', err);
-        // Forbidden / binding not set up — fall back to raw Conversations SDK via conversationSid
-        if (conversationSid) {
-          console.warn('[ChatWindow] Falling back to raw Conversations SDK for conversationSid:', conversationSid);
-          initViaConversationsClient().catch(e => console.error('Chat init (conversations fallback) error:', e));
-        }
-      }
-    };
-
-    const initViaConversationsClient = async () => {
-      // Seller side — use raw Conversations SDK
-      const res = await fetch(`${baseUrl}/seller-token?identity=${identity}`);
+    async function bindMessagingPipeline() {
+      // Both associate and seller use seller-token endpoint with their respective identity.
+      // Associate passes identity="associate1", seller passes their email.
+      const res = await fetch(`${baseUrl}/seller-token?identity=${encodeURIComponent(identity)}`);
       const data = await res.json();
-      convosClient = new ConversationsClient(data.token);
-      convosClient.on('stateChanged', async state => {
-        if (state !== 'initialized' || !active) return;
-        const convo = await convosClient.getConversationBySid(conversationSid);
-        setConversation(convo);
-        const paginator = await convo.getMessages();
-        setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
-        const listener = msg => setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
-        msgListenerRef.current = listener;
-        convo.on('messageAdded', listener);
-      });
-    };
+      const client = await ConversationsClient.create(data.token);
+      clientRef.current = client;
 
-    console.log('[ChatWindow] flexClient:', !!flexClient, 'taskSid:', taskSid, 'conversationSid:', conversationSid, 'identity:', identity);
-    if (flexClient && taskSid) {
-      initViaFlexSdk();
-    } else {
-      initViaConversationsClient().catch(err => console.error('Chat init (conversations) error:', err));
+      const activeConversation = await client.getConversationBySid(conversationSid);
+      if (!active) return;
+
+      setConversationObj(activeConversation);
+
+      const paginator = await activeConversation.getMessages();
+      if (!active) return;
+      setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
+
+      activeConversation.on('messageAdded', (message) => {
+        setMessages(prev => {
+          if (prev.find(m => m.sid === message.sid)) return prev;
+          return [...prev, { sid: message.sid, author: message.author, body: message.body }];
+        });
+      });
     }
+
+    bindMessagingPipeline().catch(console.error);
 
     return () => {
       active = false;
-      convosClient?.shutdown();
-      if (conversation && msgListenerRef.current) {
-        if (conversation.conversation) {
-          conversation.conversation.removeListener('messageAdded', msgListenerRef.current);
-        } else {
-          conversation.removeListener('messageAdded', msgListenerRef.current);
-        }
-      }
+      clientRef.current?.shutdown();
+      clientRef.current = null;
     };
-  }, [conversationSid, identity, taskSid]);
+  }, [conversationSid, identity]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || !conversation) return;
+    if (!input.trim() || !conversationObj) return;
     const body = input.trim();
     setInput('');
     try {
-      // Flex SDK wrapper: sendMessage takes options object; raw Conversations SDK: takes string
-      if (conversation.conversation) {
-        await conversation.sendMessage({ body });
-      } else {
-        await conversation.sendMessage(body);
-      }
+      await conversationObj.sendMessage(body);
     } catch (err) {
       console.error('sendMessage error:', err);
     }
