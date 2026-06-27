@@ -102,22 +102,17 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     };
 
     const handleReservation = (res) => {
-      const attrs = res.task.attributes;
-      console.log('[Reservation] status:', res.status, 'channel:', attrs.channel, 'case_id:', attrs.case_id, 'taskSid:', res.task.sid);
+      const attrs = res.task.attributes || {};
+      console.log('[Reservation Event Execution]', res.status, attrs.case_id);
 
-      // Ignore stale reservations replayed on reconnect — only act on pending ones
       if (res.status !== 'pending') return;
 
-      // Auto-accept silently: outbound voice task spawned by StartOutboundCall (has originating_case),
-      // explicit outbound direction, unknown channel, or no case_id — none of these need a popup
-      const knownChannels = ['chat', 'email', 'phone'];
-      if (attrs.originating_case || attrs.direction === 'outbound' || !attrs.case_id || !knownChannels.includes(attrs.channel)) {
-        console.log('[AutoAccept silent]', attrs.originating_case ? 'outbound call task' : 'unknown task', attrs.case_id);
-        res.accept().catch(e => console.warn('[AutoAccept silent]', e.message));
-        // Auto-complete outbound voice task when it enters wrapup
+      // Explicitly target outbound voice tasks created by this CRM via StartOutboundCall
+      if (attrs.direction === 'outbound' || attrs.originating_case) {
+        console.log('[Silent Audio Monitor] Tracking outbound voice lifecycle for Task:', res.task.sid);
         res.on('wrapup', () => {
-          console.log('[Voice] Outbound reservation wrapup, completing task:', res.task.sid);
-          flexClient.execute(new CompleteTask(res.task.sid)).catch(e => console.warn('[CompleteTask outbound]', e.message));
+          console.log('[Auto-Wrapup Triggered] Completing outbound voice leg:', res.task.sid);
+          flexClient.execute(new CompleteTask(res.task.sid)).catch(e => console.warn('Automatic wrapup clearance failed:', e.message));
         });
         return;
       }
@@ -196,21 +191,18 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const handleAccept = async () => {
     clearInterval(countdownRef.current);
     if (!pendingReservation) return;
+
     const channel = pendingAttrs?.channel;
-    const taskSid = pendingReservation.task.sid;
+    const currentTask = pendingReservation.task;
+    const taskSid = currentTask.sid;
 
     try {
-      // Accept the task via Flex SDK so reservation state is tracked
-      let acceptedTask;
+      // Accept the task — 48917 conference errors are expected for non-voice tasks
       try {
-        const result = await flexClient.execute(new AcceptTask(taskSid));
-        acceptedTask = result.task;
+        await flexClient.execute(new AcceptTask(taskSid));
       } catch (err) {
-        const code = err.code || err._errorData?.code || err.errorData?.code;
-        const isConferenceErr = code === 48917 || err.message?.includes('Failed to create conference') || err.message?.includes('conference');
-        if (isConferenceErr) {
-          console.warn('[AcceptTask] Conference error ignored:', err.message);
-          acceptedTask = pendingReservation.task;
+        if (err.message?.includes('conference') || err.code === 48917) {
+          console.warn('[Bypassed Non-Critical Exception] Handled media race condition.');
         } else {
           throw err;
         }
@@ -233,28 +225,24 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       if (channel === 'phone') {
         const sellerPhone = pendingAttrs?.seller_phone;
         if (sellerPhone) {
-          if (isDialingRef.current) {
-            console.warn('[StartOutboundCall] Duplicate dial suppressed');
-            return;
-          }
+          if (isDialingRef.current) return;
           isDialingRef.current = true;
           console.log('--- TRIGGERING DIAL ---');
           try {
             await navigator.mediaDevices.getUserMedia({ audio: true });
             const voiceCall = await flexClient.execute(new StartOutboundCall(sellerPhone, {
               fromNumber: import.meta.env.VITE_TWILIO_PHONE_NUMBER,
-              workflowSid: acceptedTask.workflowSid,
-              taskQueueSid: acceptedTask.queueSid,
+              workflowSid: currentTask.workflowSid,
+              taskQueueSid: currentTask.queueSid,
               attributesForTaskCreation: {
                 direction: 'outbound',
                 originating_case: pendingAttrs?.case_id,
+                channel: 'phone',
               },
             }));
             const caseId = pendingAttrs?.case_id;
             setActiveCalls(prev => ({ ...prev, [caseId]: voiceCall }));
             setPlaceholderTasks(prev => ({ ...prev, [caseId]: taskSid }));
-
-            // Complete placeholder task now that the real voice task is running
             await flexClient.execute(new CompleteTask(taskSid)).catch(e => console.warn('[CompleteTask placeholder]', e.message));
           } finally {
             isDialingRef.current = false;
@@ -263,7 +251,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       }
     } catch (err) {
       isDialingRef.current = false;
-      console.error('Accept error:', err);
+      console.error('Unified Acceptance Sequence Failed:', err);
     }
   };
 
