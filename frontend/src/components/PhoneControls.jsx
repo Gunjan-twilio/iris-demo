@@ -1,39 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-export default function PhoneControls({ call, onEnd }) {
-  const [answered, setAnswered] = useState(false);
+export default function PhoneControls({ call, sellerName, sellerPhone, onEnd }) {
   const [muted, setMuted] = useState(false);
 
-  const answerCall = () => {
-    call.accept();
-    setAnswered(true);
-  };
+  useEffect(() => {
+    if (!call) return;
+    const handleDisconnect = () => onEnd();
+    call.on?.('disconnected', handleDisconnect);
+    call.on?.('disconnect', handleDisconnect);
+    return () => {
+      call.off?.('disconnected', handleDisconnect);
+      call.off?.('disconnect', handleDisconnect);
+    };
+  }, [call]);
 
   const toggleMute = () => {
-    call.mute(!muted);
+    if (muted) {
+      call.unmute();
+    } else {
+      call.mute();
+    }
     setMuted(m => !m);
   };
 
-  const endCall = () => {
-    call.disconnect();
+  const endCall = async () => {
+    try {
+      await call.disconnect();
+    } catch (err) {
+      console.warn('disconnect error:', err);
+    }
     onEnd();
   };
 
-  if (!answered) {
-    return (
-      <div className="phone-controls">
-        <div className="phone-status">Incoming call — seller will be connected once you answer</div>
-        <div className="btn-row">
-          <button className="btn btn-success" onClick={answerCall}>Answer</button>
-          <button className="btn btn-danger" onClick={endCall}>Decline</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="phone-controls">
-      <div className="phone-status">Call in progress — connecting seller...</div>
+      <div className="phone-status">
+        Call in progress — {sellerName ? `${sellerName}` : 'seller'}{sellerPhone ? ` (${sellerPhone})` : ''}
+      </div>
       <div className="btn-row">
         <button className={`btn ${muted ? 'btn-danger' : 'btn-ghost'}`} onClick={toggleMute}>
           {muted ? 'Unmute' : 'Mute'}

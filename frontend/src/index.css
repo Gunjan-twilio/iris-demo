@@ -637,3 +637,922 @@ input:focus, select:focus {
   padding: 20px 0;
   text-align: center;
 }
+
+/* ── Walmart Seller Center backdrop ── */
+.wmt-full {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background: #f4f6f8;
+}
+
+.wmt-layout {
+  display: flex;
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.wmt-nav {
+  width: 160px;
+  flex-shrink: 0;
+  background: #0071CE;
+  display: flex;
+  flex-direction: column;
+  padding-top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.wmt-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  margin-bottom: 4px;
+}
+
+.wmt-nav-item {
+  padding: 9px 16px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.82);
+  cursor: default;
+  transition: background 0.1s;
+}
+
+.wmt-nav-item:hover { background: rgba(255,255,255,0.1); }
+.wmt-nav-item.active { background: rgba(255,255,255,0.18); color: white; font-weight: 600; }
+
+.wmt-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: white;
+}
+
+.wmt-header {
+  height: 48px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.wmt-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f4f6f8;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 6px 12px;
+  width: 280px;
+}
+
+.wmt-search input {
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #6b7280;
+  outline: none;
+  width: 100%;
+  padding: 0;
+}
+
+.wmt-content {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.wmt-welcome {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 20px;
+}
+
+.wmt-metrics-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.wmt-metric {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.wmt-metric-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.wmt-metric-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.wmt-promo-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  max-width: 400px;
+}
+
+.wmt-btn-explore {
+  background: #0071CE;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ── IRIS Panel ── */
+.iris-panel {
+  width: 340px;
+  flex-shrink: 0;
+  height: 100vh;
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 12px rgba(0,0,0,0.07);
+  position: relative;
+  z-index: 10;
+}
+
+.iris-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.iris-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.iris-home-link {
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #0071CE;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.iris-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.iris-greeting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: #F0F7FF;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.iris-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #0071CE;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.iris-option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.iris-option-row:hover {
+  background: #F0F7FF;
+  border-color: #0071CE;
+}
+
+.iris-option-icon { font-size: 16px; }
+.iris-option-label { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+.iris-option-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+.iris-chevron { font-size: 18px; color: #9ca3af; margin-left: auto; }
+
+.iris-badge-count {
+  background: #0071CE;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+.iris-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.iris-back-btn {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #0071CE;
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.iris-view-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a2e;
+  flex: 1;
+}
+
+.iris-btn-sm {
+  background: #0071CE;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.iris-case-row {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.iris-case-row:hover {
+  background: #F0F7FF;
+  border-color: #0071CE;
+}
+
+.iris-case-id-chip {
+  font-size: 11px;
+  font-weight: 600;
+  background: #EBF5FB;
+  color: #1565C0;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.iris-status-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.iris-case-meta-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fafafa;
+  margin-bottom: 14px;
+}
+
+.iris-status-msg {
+  font-size: 13px;
+  color: #1565C0;
+  background: #EBF5FB;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.iris-status-resolved {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.iris-btn-primary {
+  width: 100%;
+  padding: 10px;
+  background: #0071CE;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.15s;
+}
+
+.iris-btn-primary:hover { opacity: 0.88; }
+.iris-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.iris-btn-resolve {
+  width: 100%;
+  padding: 10px;
+  background: white;
+  color: #2E7D32;
+  border: 1.5px solid #2E7D32;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+
+.iris-btn-resolve:hover { background: #E8F5E9; }
+
+/* Override form inputs inside iris panel */
+.iris-panel-body input,
+.iris-panel-body select {
+  font-size: 13px;
+}
+
+/* Compact chat inside iris panel */
+.iris-panel-body .chat-window {
+  height: 320px;
+  margin-top: 0;
+  border-radius: 8px;
+}
+
+/* ── Associate App ── */
+.iris-assoc-app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #f4f6f8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Nav */
+.iris-assoc-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0 16px;
+  gap: 0;
+}
+
+.iris-assoc-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.iris-assoc-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0071CE;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.iris-assoc-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 44px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.1s;
+  flex-shrink: 0;
+}
+
+.iris-assoc-tab:hover { color: #374151; background: #f9fafb; }
+.iris-assoc-tab.active { color: #0071CE; border-bottom-color: #0071CE; font-weight: 600; }
+
+.iris-assoc-tab-close {
+  font-size: 15px;
+  color: #9ca3af;
+  margin-left: 4px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.iris-assoc-tab-close:hover { background: #fee2e2; color: #dc2626; }
+
+.iris-assoc-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.iris-assoc-status-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #374151;
+}
+
+.iris-assoc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-green { background: #16a34a; }
+.dot-gray  { background: #9ca3af; }
+
+.iris-assoc-status-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  width: 200px;
+  z-index: 100;
+  overflow: hidden;
+}
+
+.iris-assoc-status-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px 6px;
+}
+
+.iris-assoc-status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #374151;
+}
+.iris-assoc-status-option:hover { background: #f9fafb; }
+.iris-assoc-status-option.selected { font-weight: 600; }
+
+.iris-assoc-status-set-btn {
+  padding: 9px 14px;
+  font-size: 13px;
+  color: #0071CE;
+  font-weight: 600;
+  cursor: pointer;
+  border-top: 1px solid #e5e7eb;
+}
+.iris-assoc-status-set-btn:hover { background: #f0f7ff; }
+
+/* Overlay */
+.iris-overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.iris-overlay-card {
+  background: white;
+  border-radius: 12px;
+  width: 380px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+
+.iris-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #0071CE;
+  color: white;
+}
+
+.iris-overlay-countdown {
+  font-size: 22px;
+  font-weight: 700;
+  color: #FFC220;
+}
+
+.iris-overlay-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.iris-overlay-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+.iris-overlay-row span { color: #6b7280; width: 70px; flex-shrink: 0; }
+
+.iris-overlay-actions {
+  display: flex;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.iris-overlay-accept {
+  flex: 1;
+  padding: 10px;
+  background: #16a34a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.iris-overlay-accept:hover { opacity: 0.88; }
+
+.iris-overlay-reject {
+  flex: 1;
+  padding: 10px;
+  background: white;
+  color: #dc2626;
+  border: 1.5px solid #dc2626;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.iris-overlay-reject:hover { background: #fee2e2; }
+
+/* Home */
+.iris-assoc-home {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.iris-assoc-home-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+}
+
+.iris-assoc-home-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.iris-assoc-home-sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 24px;
+}
+
+.iris-assoc-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+.iris-assoc-empty {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  background: white;
+  margin-bottom: 8px;
+}
+
+.iris-assoc-case-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+.iris-assoc-case-card:hover { border-color: #0071CE; box-shadow: 0 1px 6px rgba(0,113,206,0.1); }
+
+.iris-assoc-metrics-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.iris-assoc-metric {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: white;
+}
+
+.iris-assoc-metric-icon {
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.iris-assoc-metric-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.iris-assoc-metric-label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.iris-assoc-search-row { margin-bottom: 4px; }
+
+.iris-assoc-search {
+  width: 100%;
+  padding: 9px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  background: white;
+  outline: none;
+}
+.iris-assoc-search:focus { border-color: #0071CE; }
+
+.iris-assoc-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.iris-assoc-recent-row:hover { background: #f0f7ff; border-color: #0071CE; }
+
+/* Sidebar */
+.iris-assoc-home-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  padding: 28px 16px;
+  overflow-y: auto;
+}
+
+.iris-assoc-sidebar-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: white;
+}
+
+.iris-assoc-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.iris-assoc-refresh-btn {
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 2px;
+}
+.iris-assoc-refresh-btn:hover { color: #0071CE; }
+
+.iris-assoc-queue-count {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-bottom: 6px;
+}
+
+.iris-assoc-view-all {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0071CE;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Case detail */
+.iris-assoc-detail {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  background: white;
+}
+
+.iris-assoc-detail-left {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  padding: 20px;
+  overflow-y: auto;
+  background: white;
+}
+
+.iris-assoc-detail-case-id {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iris-assoc-overview-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.iris-assoc-overview-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+.iris-assoc-overview-val {
+  font-size: 14px;
+  color: #374151;
+}
+
+.iris-assoc-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.iris-assoc-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.iris-assoc-action-btn {
+  width: 100%;
+  padding: 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-resolve { background: #0071CE; color: white; }
+.btn-resolve:hover { opacity: 0.88; }
+.btn-close { background: white; color: #374151; border: 1px solid #e5e7eb !important; }
+.btn-close:hover { background: #f9fafb; }
+
+.iris-assoc-detail-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.iris-assoc-comm-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.iris-assoc-comm-tab {
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-weight: 500;
+}
+.iris-assoc-comm-tab:hover { color: #374151; }
+.iris-assoc-comm-tab.active { color: #0071CE; border-bottom-color: #0071CE; font-weight: 600; }
+
+.iris-assoc-comm-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.iris-assoc-comm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #9ca3af;
+}
+
+/* Full-height chat/email inside detail */
+.iris-assoc-detail .chat-window {
+  height: calc(100vh - 130px);
+  margin-top: 0;
+  border-radius: 8px;
+}
+
+.iris-assoc-detail .email-thread-view {
+  height: calc(100vh - 130px);
+  overflow: hidden;
+}

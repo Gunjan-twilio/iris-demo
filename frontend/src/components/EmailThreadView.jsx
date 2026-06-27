@@ -58,25 +58,28 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
 
     const init = async () => {
       try {
-        const result = await flexClient.execute(new GetConversationByTask(taskSid));
+        const convo = await flexClient.execute(new GetConversationByTask(taskSid));
         if (!active) return;
 
-        const convo = result.conversation ?? result;
         setConversation(convo);
 
         // Load message history
         const paginator = await convo.getMessages();
         const items = await Promise.all(paginator.items.map(async m => {
-          let htmlUrl;
+          let htmlContent;
           try {
-            htmlUrl = await m.getEmailBody?.('text/html')?.getContentTemporaryUrl?.();
+            const url = await m.getEmailBody?.('text/html')?.getContentTemporaryUrl?.();
+            if (url) {
+              const res = await fetch(url);
+              htmlContent = await res.text();
+            }
           } catch (_) {}
           return {
             sid: m.sid,
             author: m.author,
             body: m.body,
             subject: m.subject,
-            htmlUrl,
+            htmlContent,
             dateCreated: m.dateCreated,
           };
         }));
@@ -87,23 +90,27 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
         items.slice(0, -1).forEach(m => { initial[m.sid] = true; });
         setCollapsed(initial);
 
-        // Listen for new messages
+        // Listen for new messages via the inner Twilio Conversations object
         const listener = async (msg) => {
-          let htmlUrl;
+          let htmlContent;
           try {
-            htmlUrl = await msg.getEmailBody?.('text/html')?.getContentTemporaryUrl?.();
+            const url = await msg.getEmailBody?.('text/html')?.getContentTemporaryUrl?.();
+            if (url) {
+              const res = await fetch(url);
+              htmlContent = await res.text();
+            }
           } catch (_) {}
           setMessages(prev => [...prev, {
             sid: msg.sid,
             author: msg.author,
             body: msg.body,
             subject: msg.subject,
-            htmlUrl,
+            htmlContent,
             dateCreated: msg.dateCreated,
           }]);
         };
         msgListenerRef.current = listener;
-        convo.on('messageAdded', listener);
+        convo.conversation.on('messageAdded', listener);
       } catch (err) {
         console.error('EmailThreadView init error:', err);
       }
@@ -113,7 +120,7 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
     return () => {
       active = false;
       if (conversation && msgListenerRef.current) {
-        conversation.removeListener('messageAdded', msgListenerRef.current);
+        conversation.conversation?.removeListener('messageAdded', msgListenerRef.current);
       }
     };
   }, [flexClient, taskSid]);
@@ -126,18 +133,12 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
 
     setSending(true);
     try {
-      if (hasHtml) {
-        await conversation.sendMessage({
-          htmlBody: replyHtml.trim(),
-          plainTextBody: replyHtml.replace(/<[^>]+>/g, '').trim(),
-          subject,
-        });
-      } else {
-        await conversation.sendMessage({
-          body: replyBody.trim(),
-          subject,
-        });
-      }
+      const html = hasHtml ? replyHtml.trim() : `<p>${replyBody.trim().replace(/\n/g, '<br>')}</p>`;
+      const plain = html.replace(/<[^>]+>/g, '').trim();
+      const msgOptions = { htmlBody: html, plainTextBody: plain, subject };
+      console.log('[sendReply] conversation type:', typeof conversation, 'keys:', Object.keys(conversation || {}));
+      console.log('[sendReply] msgOptions:', msgOptions);
+      await conversation.sendMessage(msgOptions);
       setReplyBody('');
       setReplyHtml('');
       setPreviewHtml('');
@@ -188,8 +189,7 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
         {messages.map((m, i) => {
           const isLast = i === messages.length - 1;
           const isCollapsedMsg = collapsed[m.sid];
-          const bodyContent = m.htmlUrl || m.body;
-          const isHtml = !!m.htmlUrl || /<[a-z][\s\S]*>/i.test(m.body);
+          const isHtml = !m.htmlContent && /<[a-z][\s\S]*>/i.test(m.body);
 
           return (
             <div key={m.sid} className={`email-message-card ${isCollapsedMsg ? 'collapsed' : ''}`}>
@@ -210,10 +210,10 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
               </div>
               {!isCollapsedMsg && (
                 <div className="email-message-body">
-                  {m.htmlUrl
-                    ? <iframe src={m.htmlUrl} style={{ width: '100%', border: 'none', minHeight: 200 }} sandbox="allow-same-origin" onLoad={e => { e.target.style.height = e.target.contentDocument?.body?.scrollHeight + 'px'; }} />
+                  {m.htmlContent
+                    ? <iframe srcDoc={m.htmlContent} style={{ width: '100%', border: 'none', minHeight: 200 }} sandbox="allow-same-origin allow-scripts" onLoad={e => { e.target.style.height = e.target.contentDocument?.body?.scrollHeight + 'px'; }} />
                     : isHtml
-                      ? <iframe srcDoc={m.body} style={{ width: '100%', border: 'none', minHeight: 200 }} sandbox="allow-same-origin" onLoad={e => { e.target.style.height = e.target.contentDocument?.body?.scrollHeight + 'px'; }} />
+                      ? <iframe srcDoc={m.body} style={{ width: '100%', border: 'none', minHeight: 200 }} sandbox="allow-same-origin allow-scripts" onLoad={e => { e.target.style.height = e.target.contentDocument?.body?.scrollHeight + 'px'; }} />
                       : m.body.split('\n').map((line, j) => <p key={j} style={{ margin: '0 0 4px 0' }}>{line || <br />}</p>)
                   }
                 </div>

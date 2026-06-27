@@ -33,6 +33,8 @@ exports.handler = async function (context, event, callback) {
       channel: record.channel,
       case_summary: record.case_summary || '',
       seller_email: record.seller_email || '',
+      seller_phone: record.seller_phone || '',
+      seller_name: record.seller_name || '',
     });
 
     return callback(null, response);

@@ -27,33 +27,14 @@ exports.handler = async function (context, event, callback) {
     let conversation_sid = existing_conversation_sid || null;
 
     if (channel === 'chat') {
-      // Create a new conversation for chat and add both participants
-      const conversation = await client.conversations.v1
-        .services(context.CONVERSATIONS_SERVICE_SID)
-        .conversations.create({ friendlyName: case_id });
-
-      conversation_sid = conversation.sid;
-
-      await client.conversations.v1
-        .services(context.CONVERSATIONS_SERVICE_SID)
-        .conversations(conversation_sid)
-        .participants.create({ identity: 'associate1' });
-
-      await client.conversations.v1
-        .services(context.CONVERSATIONS_SERVICE_SID)
-        .conversations(conversation_sid)
-        .participants.create({ identity: `seller-${case_id}` });
+      // Seller participant is added at task creation time in create-task.js
 
     } else if (channel === 'email') {
       // Conversation was already created in create-task — just use it
       // conversation_sid is already set from existing_conversation_sid
 
     } else if (channel === 'phone') {
-      await client.calls.create({
-        to: 'client:associate1',
-        from: context.TWILIO_PHONE_NUMBER,
-        url: `https://iris-demo-2775-dev.twil.io/voice-handler?seller_phone=${encodeURIComponent(seller_phone)}`,
-      });
+      // Call is placed client-side via StartOutboundCall after AcceptTask
     }
 
     // Update Airtable

@@ -30,8 +30,8 @@ exports.handler = async function (context, event, callback) {
       }
     }
 
-    // Tell TaskRouter to accept — UI handles the actual workflow from here
-    response.setBody({ instruction: 'accept' });
+    // Return no instruction — let the associate UI handle accept/reject
+    response.setBody({});
     return callback(null, response);
   } catch (err) {
     console.error(err);

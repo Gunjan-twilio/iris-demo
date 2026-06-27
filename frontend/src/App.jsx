@@ -13,31 +13,21 @@ function AssociatePage() {
     fetch(`${BASE_URL}/token?identity=associate1`)
       .then(r => r.json())
       .then(async data => {
-        const client = await createClient(data.token);
-        setFlexClient(client);
+        try {
+          const client = await createClient(data.token, { logLevel: 'debug' });
+          setFlexClient(client);
+        } catch (err) {
+          console.error('createClient failed:', err);
+        }
       })
-      .catch(err => console.error('Failed to initialize Flex SDK', err));
+      .catch(err => console.error('Failed to fetch token', err));
   }, []);
 
-  return (
-    <div className="app">
-      <header className="app-header">IRIS — Associate Workstation</header>
-      <div className="full-panel">
-        <AssociatePanel baseUrl={BASE_URL} flexClient={flexClient} />
-      </div>
-    </div>
-  );
+  return <AssociatePanel baseUrl={BASE_URL} flexClient={flexClient} />;
 }
 
 function SellerPage() {
-  return (
-    <div className="app">
-      <header className="app-header">IRIS — Seller Support</header>
-      <div className="full-panel">
-        <SellerPanel baseUrl={BASE_URL} />
-      </div>
-    </div>
-  );
+  return <SellerPanel baseUrl={BASE_URL} />;
 }
 
 export default function App() {

@@ -114,8 +114,91 @@ exports.handler = async function (context, event, callback) {
         created_at: new Date().toISOString().split('T')[0],
       });
 
+    } else if (channel === 'chat') {
+      // Use Flex Interactions API with type: 'web' — creates task + conversation atomically
+      // so GetConversationByTask works natively on the associate side
+      const https = require('https');
+      const qs = require('querystring');
+
+      const channelParam = JSON.stringify({
+        type: 'web',
+        initiated_by: 'api',
+      });
+
+      const routingParam = JSON.stringify({
+        properties: {
+          workspace_sid: context.WORKSPACE_SID,
+          workflow_sid: context.WORKFLOW_SID,
+          task_channel_unique_name: 'chat',
+          attributes: {
+            skill: help_category,
+            channel,
+            seller_name,
+            seller_phone: seller_phone || '',
+            seller_email: seller_email || '',
+            case_summary: case_summary || '',
+            case_id,
+          },
+        },
+      });
+
+      const postData = qs.stringify({ Channel: channelParam, Routing: routingParam });
+      const auth = Buffer.from(`${context.ACCOUNT_SID}:${context.AUTH_TOKEN}`).toString('base64');
+
+      const interaction = await new Promise((resolve, reject) => {
+        const req = https.request({
+          hostname: 'flex-api.twilio.com',
+          path: '/v1/Interactions',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${auth}`,
+            'Content-Length': Buffer.byteLength(postData),
+          },
+        }, res => {
+          let data = '';
+          res.on('data', chunk => { data += chunk; });
+          res.on('end', () => {
+            const parsed = JSON.parse(data);
+            if (res.statusCode >= 400) reject(new Error(parsed.message || JSON.stringify(parsed)));
+            else resolve(parsed);
+          });
+        });
+        req.on('error', reject);
+        req.write(postData);
+        req.end();
+      });
+
+      const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
+      conversation_sid = taskAttrs.conversationSid || taskAttrs.conversation_sid || '';
+
+      // Add seller as participant immediately so they can connect without waiting for accept
+      if (conversation_sid && seller_email) {
+        try {
+          await client.conversations.v1
+            .services(context.CONVERSATIONS_SERVICE_SID)
+            .conversations(conversation_sid)
+            .participants.create({ identity: seller_email });
+        } catch (e) {
+          if (!e.message?.includes('already exists')) console.error('Add seller participant error:', e.message);
+        }
+      }
+
+      await base('Cases').create({
+        case_id,
+        seller_name,
+        help_category,
+        channel,
+        status: 'new',
+        seller_phone: seller_phone || '',
+        seller_email: seller_email || '',
+        case_summary: case_summary || '',
+        conversation_sid,
+        created_at: new Date().toISOString().split('T')[0],
+      });
+
     } else {
-      // Chat and phone: create TaskRouter task directly
+      // Phone: create TaskRouter task directly, no conversation needed
       await client.taskrouter.v1
         .workspaces(context.WORKSPACE_SID)
         .tasks.create({
@@ -147,7 +230,7 @@ exports.handler = async function (context, event, callback) {
       });
     }
 
-    response.setBody({ case_id });
+    response.setBody({ case_id, conversation_sid: conversation_sid || '' });
     return callback(null, response);
   } catch (err) {
     console.error(err);

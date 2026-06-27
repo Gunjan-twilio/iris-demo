@@ -16,24 +16,27 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
 
     const initViaFlexSdk = async () => {
       try {
-        // Associate side — use flex-sdk to get conversation
-        const result = await flexClient.execute(new GetConversationByTask(taskSid));
+        const convo = await flexClient.execute(new GetConversationByTask(taskSid));
         if (!active) return;
-        const convo = result.conversation ?? result;
         setConversation(convo);
         const paginator = await convo.getMessages();
         setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
         const listener = msg => setMessages(prev => [...prev, { sid: msg.sid, author: msg.author, body: msg.body }]);
         msgListenerRef.current = listener;
-        convo.on('messageAdded', listener);
+        convo.conversation.on('messageAdded', listener);
       } catch (err) {
         console.error('Chat init (flex-sdk) error:', err);
+        // Forbidden / binding not set up — fall back to raw Conversations SDK via conversationSid
+        if (conversationSid) {
+          console.warn('[ChatWindow] Falling back to raw Conversations SDK for conversationSid:', conversationSid);
+          initViaConversationsClient().catch(e => console.error('Chat init (conversations fallback) error:', e));
+        }
       }
     };
 
     const initViaConversationsClient = async () => {
       // Seller side — use raw Conversations SDK
-      const res = await fetch(`${baseUrl}/token?identity=${identity}`);
+      const res = await fetch(`${baseUrl}/seller-token?identity=${identity}`);
       const data = await res.json();
       convosClient = new ConversationsClient(data.token);
       convosClient.on('stateChanged', async state => {
@@ -48,6 +51,7 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
       });
     };
 
+    console.log('[ChatWindow] flexClient:', !!flexClient, 'taskSid:', taskSid, 'conversationSid:', conversationSid, 'identity:', identity);
     if (flexClient && taskSid) {
       initViaFlexSdk();
     } else {
@@ -58,7 +62,11 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
       active = false;
       convosClient?.shutdown();
       if (conversation && msgListenerRef.current) {
-        conversation.removeListener('messageAdded', msgListenerRef.current);
+        if (conversation.conversation) {
+          conversation.conversation.removeListener('messageAdded', msgListenerRef.current);
+        } else {
+          conversation.removeListener('messageAdded', msgListenerRef.current);
+        }
       }
     };
   }, [conversationSid, identity, taskSid]);
@@ -69,8 +77,18 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
 
   const sendMessage = async () => {
     if (!input.trim() || !conversation) return;
-    await conversation.sendMessage(input.trim());
+    const body = input.trim();
     setInput('');
+    try {
+      // Flex SDK wrapper: sendMessage takes options object; raw Conversations SDK: takes string
+      if (conversation.conversation) {
+        await conversation.sendMessage({ body });
+      } else {
+        await conversation.sendMessage(body);
+      }
+    } catch (err) {
+      console.error('sendMessage error:', err);
+    }
   };
 
   const handleKey = e => { if (e.key === 'Enter') sendMessage(); };
