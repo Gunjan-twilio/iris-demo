@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IRIS — Request Flow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0f1117;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  .diagram {
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .title {
+    text-align: center;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+    opacity: 0.5;
+  }
+
+  /* ── Row 1: the three actors ── */
+  .actors {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .actor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .actor-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .actor-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .actor-sub {
+    font-size: 11px;
+    opacity: 0.45;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .seller .actor-icon   { background: #1a2744; border: 1.5px solid #3b5bdb; }
+  .seller .actor-label  { color: #748ffc; }
+
+  .taskrouter .actor-icon  { background: #1c1730; border: 1.5px solid #7048e8; }
+  .taskrouter .actor-label { color: #9775fa; }
+
+  .associate .actor-icon  { background: #0f2318; border: 1.5px solid #2f9e44; }
+  .associate .actor-label { color: #69db7c; }
+
+  /* ── Connector row ── */
+  .connectors {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 28px 0 28px 0;
+    position: relative;
+  }
+
+  .node-anchor {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  .arrow-segment {
+    flex: 1.2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .arrow-line {
+    width: 100%;
+    height: 2px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .arrow-line::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid;
+    border-right: 2px solid;
+    transform: rotate(45deg) translateY(-50%);
+    top: 50%;
+    margin-top: -4px;
+  }
+
+  .seg-1 .arrow-line::before { background: #3b5bdb; }
+  .seg-1 .arrow-line::after  { border-color: #3b5bdb; }
+
+  .seg-2 .arrow-line::before { background: #7048e8; }
+  .seg-2 .arrow-line::after  { border-color: #7048e8; }
+
+  .arrow-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .seg-1 .arrow-label { color: #5c7cfa; }
+  .seg-2 .arrow-label { color: #9775fa; }
+
+  .arrow-detail {
+    font-size: 10px;
+    opacity: 0.4;
+    white-space: nowrap;
+  }
+
+  /* step dots on actors */
+  .step-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .seller    .step-badge { background: #3b5bdb; color: #fff; }
+  .taskrouter .step-badge { background: #7048e8; color: #fff; }
+  .associate  .step-badge { background: #2f9e44; color: #fff; }
+
+  /* ── Accept step ── */
+  .accept-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -8px;
+    margin-bottom: 28px;
+    padding-right: calc(50% - 56px); /* align under associate column */
+  }
+
+  .accept-box {
+    background: #0c1f13;
+    border: 1.5px solid #2f9e44;
+    border-radius: 10px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #69db7c;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── Channel cards ── */
+  .channels-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+    opacity: 0.35;
+    margin-bottom: 14px;
+  }
+
+  .channels {
+    display: flex;
+    gap: 12px;
+  }
+
+  .channel-card {
+    flex: 1;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .channel-card.chat {
+    background: #0d1b2e;
+    border: 1.5px solid #1971c2;
+  }
+  .channel-card.phone {
+    background: #120f2a;
+    border: 1.5px solid #6741d9;
+  }
+  .channel-card.email {
+    background: #1a1000;
+    border: 1.5px solid #e67700;
+  }
+
+  .channel-icon { font-size: 18px; }
+
+  .channel-name {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .chat  .channel-name { color: #4dabf7; }
+  .phone .channel-name { color: #9775fa; }
+  .email .channel-name { color: #ffa94d; }
+
+  .channel-mechanism {
+    font-size: 10.5px;
+    opacity: 0.55;
+    line-height: 1.5;
+    color: #e2e8f0;
+  }
+
+  /* vertical line from accept to channels */
+  .accept-to-channels {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  .v-line {
+    width: 2px;
+    height: 24px;
+    background: linear-gradient(to bottom, #2f9e44, #4dabf7);
+    border-radius: 1px;
+  }
+
+  /* ── SDK callout strip ── */
+  .sdk-strip {
+    margin-top: 28px;
+    border: 1px solid #2a2a3a;
+    border-radius: 10px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #13131f;
+  }
+
+  .sdk-strip-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9775fa;
+    white-space: nowrap;
+  }
+
+  .sdk-strip-text {
+    font-size: 11px;
+    color: #a0aec0;
+    line-height: 1.5;
+  }
+
+  .sdk-strip-text strong { color: #e2e8f0; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="diagram">
+
+  <p class="title">IRIS — How a support request flows</p>
+
+  <!-- ACTORS -->
+  <div class="actors">
+
+    <div class="actor seller">
+      <div class="step-badge">1</div>
+      <div class="actor-icon">🛍️</div>
+      <div class="actor-label">Seller Portal</div>
+      <div class="actor-sub">Owl Shoes submits<br>a support request</div>
+    </div>
+
+    <div class="arrow-segment seg-1">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">HTTP POST</div>
+      <div class="arrow-detail">create-task.js</div>
+    </div>
+
+    <div class="actor taskrouter">
+      <div class="step-badge">2</div>
+      <div class="actor-icon">⚙️</div>
+      <div class="actor-label">TaskRouter</div>
+      <div class="actor-sub">Queues &amp; routes<br>to available worker</div>
+    </div>
+
+    <div class="arrow-segment seg-2">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">SDK Event</div>
+      <div class="arrow-detail">reservationCreated</div>
+    </div>
+
+    <div class="actor associate">
+      <div class="step-badge">3</div>
+      <div class="actor-icon">🧑‍💻</div>
+      <div class="actor-label">Associate CRM</div>
+      <div class="actor-sub">Reservation appears<br>in browser via SDK</div>
+    </div>
+
+  </div>
+
+  <!-- ACCEPT -->
+  <div class="accept-to-channels" style="margin-top: 24px; margin-bottom: 0;">
+    <div style="flex:1"></div>
+    <div style="flex:1"></div>
+    <div style="flex:1; display:flex; justify-content:center;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+        <div class="accept-box">
+          <span>✓</span>
+          <span>Step 4 — Associate accepts</span>
+        </div>
+        <div class="v-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHANNEL CARDS -->
+  <div class="channels-label" style="margin-top: 8px;">Channel spins up based on task type</div>
+  <div class="channels">
+
+    <div class="channel-card chat">
+      <div class="channel-icon">💬</div>
+      <div class="channel-name">Chat</div>
+      <div class="channel-mechanism">
+        <code style="background:#1a3a5c; padding:1px 5px; border-radius:3px; font-size:10px;">initialize-accepted-chat</code> creates a Twilio Conversation, adds seller + associate, stamps SID onto task attrs
+      </div>
+    </div>
+
+    <div class="channel-card phone">
+      <div class="channel-icon">📞</div>
+      <div class="channel-name">Phone</div>
+      <div class="channel-mechanism">
+        <code style="background:#2a1f4a; padding:1px 5px; border-radius:3px; font-size:10px;">AcceptTask</code> creates a voice conference; backend dials seller into the same bridge
+      </div>
+    </div>
+
+    <div class="channel-card email">
+      <div class="channel-icon">✉️</div>
+      <div class="channel-name">Email</div>
+      <div class="channel-mechanism">
+        <code style="background:#2a1800; padding:1px 5px; border-radius:3px; font-size:10px;">Flex Interactions API</code> creates a richer interaction object that carries thread context
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SDK CALLOUT -->
+  <div class="sdk-strip">
+    <div class="sdk-strip-label">Flex SDK</div>
+    <div class="sdk-strip-text">
+      <strong>Headless mode</strong> — no Flex hosted UI. The SDK provides routing, worker presence, and reservation events.
+      <strong>The React CRM is entirely custom</strong> — we only consume the event stream.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
