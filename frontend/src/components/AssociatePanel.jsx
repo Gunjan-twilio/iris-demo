@@ -91,8 +91,15 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         loadRecentCases();
       });
       res.on('completed', () => {
-        const caseId = res.task.attributes?.case_id;
-        if (caseId) setOpenCases(prev => prev.filter(c => c.case_id !== caseId));
+        const attrs = res.task.attributes || {};
+        const channelType = attrs.channel;
+        const taskChannel = res.task.taskChannelUniqueName;
+
+        if (channelType === 'phone' && taskChannel !== 'voice') {
+          loadRecentCases();
+          return;
+        }
+        if (attrs.case_id) setOpenCases(prev => prev.filter(c => c.case_id !== attrs.case_id));
         loadRecentCases();
       });
       res.on('canceled', () => setPendingReservation(null));
@@ -270,8 +277,16 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
               },
             }));
             const caseId = pendingAttrs?.case_id;
+            const attrs = { ...pendingAttrs };
             setActiveCalls(prev => ({ ...prev, [caseId]: voiceCall }));
             setPlaceholderTasks(prev => ({ ...prev, [caseId]: taskSid }));
+            setOpenCases(prev => {
+              if (prev.find(c => c.case_id === caseId)) return prev;
+              return [...prev, { case_id: caseId, attrs, taskSid }];
+            });
+            setActiveTabId(caseId);
+            setPendingReservation(null);
+            setPendingAttrs(null);
             await flexClient.execute(new CompleteTask(taskSid)).catch(e => console.warn('[CompleteTask placeholder]', e.message));
           } finally {
             isDialingRef.current = false;
