@@ -17,7 +17,7 @@ function OAuthCallback() {
     const loginDetails = JSON.parse(localStorage.getItem('login-details') || 'null');
 
     if (!code || !state || !authConfig || !loginDetails) {
-      window.location.replace('/#/associate');
+      window.location.replace('/index.html#/associate');
       return;
     }
 
@@ -31,10 +31,10 @@ function OAuthCallback() {
       localStorage.removeItem('login-details');
       localStorage.setItem('jweToken', tokenResponse.accessToken);
       localStorage.setItem('refreshToken', tokenResponse.refreshToken);
-      window.location.replace('/#/associate');
+      window.location.replace('/index.html#/associate');
     }).catch(err => {
       console.error('Token exchange failed', err);
-      window.location.replace('/#/associate');
+      window.location.replace('/index.html#/associate');
     });
   }, []);
 
