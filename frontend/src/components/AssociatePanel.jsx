@@ -386,7 +386,11 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
           {!flexClient && <span style={{fontSize:12,color:'#9ca3af',marginRight:12}}>Connecting...</span>}
           {worker && (
             <span style={{fontSize:13,color:'#374151',marginRight:12,fontWeight:500}}>
-              {worker.attributes?.full_name || worker.friendlyName}
+              {(() => {
+                const full = worker.attributes?.full_name;
+                if (full && !full.includes('@')) return full;
+                return worker.attributes?.public_identity || worker.friendlyName;
+              })()}
             </span>
           )}
           <div style={{position:'relative'}}>
