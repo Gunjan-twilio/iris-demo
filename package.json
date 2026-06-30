@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "deploy": "cd frontend && npm run build && cd ../functions && twilio serverless:deploy --override-existing-project --profile \"Retail flex-sdk\""
+    "deploy": "cd frontend && npm run build && cd ../functions && dotenv -e ../.env -- twilio serverless:deploy --override-existing-project"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0"
   }
 }
