@@ -25,7 +25,7 @@ exports.handler = async function (context, event, callback) {
 
     if (records.length > 0) {
       const fields = records[0].fields;
-      await base('Cases').update(records[0].id, { status: newStatus });
+      await base('Cases').update(records[0].id, { status: newStatus, updated_at: new Date().toISOString() });
 
       // Always complete the TaskRouter task to free worker capacity
       if (fields.task_sid) {

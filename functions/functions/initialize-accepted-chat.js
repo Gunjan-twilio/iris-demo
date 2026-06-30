@@ -64,7 +64,7 @@ exports.handler = async function (context, event, callback) {
     }).firstPage();
 
     if (records.length > 0) {
-      await base('Cases').update(records[0].id, { conversation_sid: conversationSid, status: 'wip' });
+      await base('Cases').update(records[0].id, { conversation_sid: conversationSid, status: 'wip', updated_at: new Date().toISOString() });
     }
 
     response.setBody({ conversationSid });

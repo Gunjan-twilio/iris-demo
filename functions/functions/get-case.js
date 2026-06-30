@@ -35,6 +35,7 @@ exports.handler = async function (context, event, callback) {
       seller_email: record.seller_email || '',
       seller_phone: record.seller_phone || '',
       seller_name: record.seller_name || '',
+      assigned_worker: record.assigned_worker || '',
     });
 
     return callback(null, response);
