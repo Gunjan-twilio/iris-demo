@@ -1,0 +1,8 @@
+{
+  "name": "iris-walmart-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "cd frontend && npm run build && cd ../functions && twilio serverless:deploy --override-existing-project --profile \"Retail flex-sdk\""
+  }
+}

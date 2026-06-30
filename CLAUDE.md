@@ -4,7 +4,7 @@
 Headless Twilio Flex SDK customer support platform for Walmart sellers. Associates handle inbound chat, phone, and email tasks from a React CRM. Sellers submit support requests via a separate React portal.
 
 **Deployed URL:** https://iris-demo-2775-dev.twil.io
-- Associate panel: `/#/associate`
+- Associate panel: `/#/associate` — requires SSO login; runtime domain: `busy-anteater-9071.twil.io`
 - Seller panel: `/#/seller`
 
 ---
