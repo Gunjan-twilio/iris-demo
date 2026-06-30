@@ -1136,8 +1136,9 @@ input:focus, select:focus {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.dot-green { background: #16a34a; }
-.dot-gray  { background: #9ca3af; }
+.dot-green  { background: #16a34a; }
+.dot-yellow { background: #f59e0b; }
+.dot-gray   { background: #9ca3af; }
 
 .iris-assoc-status-menu {
   position: absolute;

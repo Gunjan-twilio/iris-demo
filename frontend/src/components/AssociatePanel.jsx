@@ -389,25 +389,42 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
               className="iris-assoc-status-btn"
               onClick={e => { e.stopPropagation(); setShowStatusMenu(s => !s); }}
             >
-              <span className={`iris-assoc-dot ${activity === 'Available' ? 'dot-green' : 'dot-gray'}`} />
+              <span className={`iris-assoc-dot ${activity === 'Available' ? 'dot-green' : activity === 'Offline' ? 'dot-gray' : 'dot-yellow'}`} />
               {activity}
               <span style={{marginLeft:4,fontSize:10}}>▾</span>
             </button>
             {showStatusMenu && (
               <div className="iris-assoc-status-menu">
                 <div className="iris-assoc-status-label">Agent status</div>
-                {['Offline','Available'].map(name => (
-                  <div
-                    key={name}
-                    className={`iris-assoc-status-option${activity === name ? ' selected' : ''}`}
-                    onClick={() => setAgentActivity(name)}
-                  >
-                    <span className={`iris-assoc-dot ${name === 'Available' ? 'dot-green' : 'dot-gray'}`} />
-                    {name}
-                    {activity === name && <span style={{marginLeft:'auto',color:'#0071CE'}}>✓</span>}
-                  </div>
-                ))}
-                <div className="iris-assoc-status-set-btn" onClick={() => setShowStatusMenu(false)}>Set status</div>
+                {worker
+                  ? Array.from(worker.activities.values())
+                      .sort((a, b) => {
+                        const order = { Available: 0 };
+                        const ao = order[a.name] ?? (a.name === 'Offline' ? 99 : 1);
+                        const bo = order[b.name] ?? (b.name === 'Offline' ? 99 : 1);
+                        return ao - bo || a.name.localeCompare(b.name);
+                      })
+                      .map(act => {
+                        const dotClass = act.available ? 'dot-green' : act.name === 'Offline' ? 'dot-gray' : 'dot-yellow';
+                        return (
+                          <div
+                            key={act.sid}
+                            className={`iris-assoc-status-option${activity === act.name ? ' selected' : ''}`}
+                            onClick={() => setAgentActivity(act.name)}
+                          >
+                            <span className={`iris-assoc-dot ${dotClass}`} />
+                            {act.name}
+                            {activity === act.name && <span style={{marginLeft:'auto',color:'#0071CE'}}>✓</span>}
+                          </div>
+                        );
+                      })
+                  : ['Available','Offline'].map(name => (
+                      <div key={name} className="iris-assoc-status-option" onClick={() => setAgentActivity(name)}>
+                        <span className={`iris-assoc-dot ${name === 'Available' ? 'dot-green' : 'dot-gray'}`} />
+                        {name}
+                      </div>
+                    ))
+                }
               </div>
             )}
           </div>
