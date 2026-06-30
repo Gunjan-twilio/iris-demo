@@ -13,7 +13,7 @@ exports.handler = async function (context, event, callback) {
     return callback(null, response);
   }
 
-  const { task_sid, reservation_sid, channel, seller_phone, seller_email, case_id, conversation_sid: existing_conversation_sid } = event;
+  const { task_sid, reservation_sid, channel, seller_phone, seller_email, case_id, conversation_sid: existing_conversation_sid, worker_name } = event;
 
   if (!task_sid || !reservation_sid) {
     response.setStatusCode(400);
@@ -43,10 +43,11 @@ exports.handler = async function (context, event, callback) {
     if (records.length > 0) {
       await base('Cases').update(records[0].id, {
         status: 'wip',
-        assigned_worker: 'Associate-1',
+        assigned_worker: worker_name || 'Associate',
         conversation_sid: conversation_sid || '',
         task_sid,
         seller_email: seller_email || '',
+        updated_at: new Date().toISOString(),
       });
     }
 

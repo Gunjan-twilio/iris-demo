@@ -37,6 +37,7 @@ exports.handler = async function (context, event, callback) {
       assigned_worker: r.fields.assigned_worker || '',
       conversation_sid: r.fields.conversation_sid || '',
       seller_phone: r.fields.seller_phone || '',
+      updated_at: r.fields.updated_at || r.fields.created_at || '',
     }));
 
     response.setBody({ cases });

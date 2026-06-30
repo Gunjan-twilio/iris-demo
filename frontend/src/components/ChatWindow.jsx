@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Client as ConversationsClient } from '@twilio/conversations';
 
-export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationSid, identity, onEnd, caseId }) {
+export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationSid, identity, onEnd, workerDisplayName }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [conversationObj, setConversationObj] = useState(null);
@@ -63,29 +63,17 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
 
   const handleKey = e => { if (e.key === 'Enter') sendMessage(); };
 
-  const endChat = async (resolve) => {
-    if (caseId) {
-      await fetch(`${baseUrl}/resolve-case`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_id: caseId, resolve }),
-      }).catch(console.error);
-    }
-    if (onEnd) onEnd(resolve);
-  };
-
   return (
     <div className="chat-window">
       {onEnd && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: 'white' }}>
-          <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(false)}>Save &amp; Close</button>
-          <button className="btn btn-success" style={{ padding: '5px 12px', fontSize: 13 }} onClick={() => endChat(true)}>Resolve</button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: 'white' }}>
+          <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 13 }} onClick={onEnd}>End Chat</button>
         </div>
       )}
       <div className="chat-messages">
         {messages.map(m => (
           <div key={m.sid} className={`message ${m.author === identity ? 'mine' : 'theirs'}`}>
-            <div className="message-author">{m.author}</div>
+            <div className="message-author">{m.author === identity ? m.author : (workerDisplayName || m.author)}</div>
             {m.body}
           </div>
         ))}

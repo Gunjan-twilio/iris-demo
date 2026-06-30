@@ -8,6 +8,7 @@ import {
 } from '@twilio/flex-sdk';
 import { StartOutboundCall } from '@twilio/flex-sdk/actions/Voice';
 import ChatWindow from './ChatWindow.jsx';
+import AssociateChatPanel from './AssociateChatPanel.jsx';
 import EmailThreadView from './EmailThreadView.jsx';
 import PhoneControls from './PhoneControls.jsx';
 
@@ -38,6 +39,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const [recentCases, setRecentCases] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hideResolved, setHideResolved] = useState(true);
 
   // Phone call state per case
   const [activeCalls, setActiveCalls] = useState({}); // { case_id: VoiceCall }
@@ -226,21 +228,31 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
           seller_email: pendingAttrs?.seller_email || '',
           case_id: pendingAttrs?.case_id,
           conversation_sid: pendingAttrs?.conversationSid || pendingAttrs?.conversation_sid || '',
+          worker_name: worker?.attributes?.full_name || worker?.friendlyName || '',
         }),
       });
 
       if (channel === 'chat') {
-        const initRes = await fetch(`${baseUrl}/initialize-accepted-chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskSid,
-            sellerEmail: pendingAttrs?.seller_email || '',
-            associateIdentity: 'associate1',
-            caseId: pendingAttrs?.case_id,
-          }),
-        });
-        const { conversationSid } = await initRes.json();
+        const existingConversationSid = pendingAttrs?.conversationSid || pendingAttrs?.conversation_sid || '';
+
+        let conversationSid = existingConversationSid;
+
+        // Only run initialize-accepted-chat for plain TaskRouter chat tasks (no pre-existing conversation)
+        if (!existingConversationSid) {
+          const initRes = await fetch(`${baseUrl}/initialize-accepted-chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskSid,
+              sellerEmail: pendingAttrs?.seller_email || '',
+              associateIdentity: 'associate1',
+              caseId: pendingAttrs?.case_id,
+            }),
+          });
+          const result = await initRes.json();
+          conversationSid = result.conversationSid;
+        }
+
         const attrs = { ...pendingAttrs, conversationSid };
         setOpenCases(prev => {
           const exists = prev.find(c => c.case_id === attrs.case_id);
@@ -333,11 +345,12 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const activeCase = openCases.find(c => c.case_id === activeTabId);
   const activeCasesCount = openCases.length;
   const resolvedCount = recentCases.filter(c => c.status === 'resolved').length;
-  const filteredRecent = recentCases.filter(c =>
-    !searchQuery || c.case_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.seller_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.case_summary?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredRecent = recentCases.filter(c => {
+    if (hideResolved && c.status === 'resolved') return false;
+    return !searchQuery || c.case_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.seller_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.case_summary?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   return (
     <div className="iris-assoc-app" onClick={() => showStatusMenu && setShowStatusMenu(false)}>
@@ -491,17 +504,34 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
                 </div>
               </div>
             </div>
-            <div className="iris-assoc-search-row">
+            <div className="iris-assoc-search-row" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input
                 className="iris-assoc-search"
                 placeholder="Search by Case Number (min 3 characters)"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
+                style={{ flex: 1 }}
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                <div
+                  onClick={() => setHideResolved(v => !v)}
+                  style={{
+                    width: 32, height: 18, borderRadius: 9, background: hideResolved ? '#0071CE' : '#d1d5db',
+                    position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 2, left: hideResolved ? 16 : 2,
+                    width: 14, height: 14, borderRadius: '50%', background: 'white',
+                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }} />
+                </div>
+                Hide resolved
+              </label>
             </div>
             <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:8}}>
               {loadingRecent && <div className="empty-state">Loading...</div>}
-              {!loadingRecent && filteredRecent.length === 0 && <div className="empty-state">No recent cases.</div>}
+              {!loadingRecent && filteredRecent.length === 0 && <div className="empty-state">{hideResolved ? 'No open cases.' : 'No recent cases.'}</div>}
               {filteredRecent.map(c => {
                 const st = STATUS[c.status] || STATUS.new;
                 return (
@@ -517,6 +547,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
                       <div>
                         <span className="iris-case-id-chip">{c.case_id}</span>
                         <span style={{fontSize:13,marginLeft:8,color:'#374151'}}>{c.case_summary || '—'}</span>
+                        {c.updated_at && <span style={{fontSize:11,marginLeft:8,color:'#9ca3af'}}>{new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>}
                       </div>
                     </div>
                     <span className="iris-status-chip" style={{background:st.bg,color:st.color}}>{st.label}</span>
@@ -546,6 +577,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         <CaseDetailView
           baseUrl={baseUrl}
           flexClient={flexClient}
+          worker={worker}
           caseEntry={activeCase}
           voiceCall={activeCalls[activeCase.case_id] || null}
           onClose={(resolve) => closeCase(activeCase.case_id, resolve)}
@@ -556,18 +588,44 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
             setActiveCalls(prev => { const n = {...prev}; delete n[caseId]; return n; });
             setPlaceholderTasks(prev => { const n = {...prev}; delete n[caseId]; return n; });
           }}
+          onCallStarted={(voiceCall) => {
+            setActiveCalls(prev => ({ ...prev, [activeCase.case_id]: voiceCall }));
+          }}
         />
       )}
     </div>
   );
 }
 
-function CaseDetailView({ baseUrl, flexClient, caseEntry, voiceCall, onClose, onVoiceEnd }) {
+function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onClose, onVoiceEnd, onCallStarted }) {
   const [commTab, setCommTab] = useState('all');
+  const [isDialing, setIsDialing] = useState(false);
   const attrs = caseEntry.attrs || {};
   const channel = attrs.channel;
   const taskSid = caseEntry.taskSid;
   const conversationSid = attrs.conversationSid || attrs.conversation_sid || '';
+
+  const handleCall = async () => {
+    const sellerPhone = attrs.seller_phone;
+    if (!sellerPhone || isDialing || voiceCall) return;
+    setIsDialing(true);
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const newCall = await flexClient.execute(new StartOutboundCall(sellerPhone, {
+        fromNumber: import.meta.env.VITE_TWILIO_PHONE_NUMBER,
+        attributesForTaskCreation: {
+          direction: 'outbound',
+          originating_case: attrs.case_id,
+          channel: 'phone',
+        },
+      }));
+      onCallStarted?.(newCall);
+    } catch (err) {
+      console.error('Failed to start call:', err);
+    } finally {
+      setIsDialing(false);
+    }
+  };
 
   return (
     <div className="iris-assoc-detail">
@@ -605,6 +663,11 @@ function CaseDetailView({ baseUrl, flexClient, caseEntry, voiceCall, onClose, on
         </div>
 
         <div className="iris-assoc-detail-actions">
+          {attrs.seller_phone && !voiceCall && (
+            <button className="iris-assoc-action-btn btn-call" onClick={handleCall} disabled={isDialing}>
+              {isDialing ? 'Calling...' : '📞 Call'}
+            </button>
+          )}
           <button className="iris-assoc-action-btn btn-resolve" onClick={() => onClose(true)}>Resolve</button>
           <button className="iris-assoc-action-btn btn-close" onClick={() => onClose(false)}>Save & Close</button>
         </div>
@@ -634,13 +697,21 @@ function CaseDetailView({ baseUrl, flexClient, caseEntry, voiceCall, onClose, on
             />
           )}
 
-          {channel === 'chat' && conversationSid && (commTab === 'all') && (
-            <ChatWindow
-              baseUrl={baseUrl}
+          {channel === 'chat' && (commTab === 'all') && taskSid && (
+            <AssociateChatPanel
               flexClient={flexClient}
               taskSid={taskSid}
+              worker={worker}
+              onEnd={() => onClose(false)}
+            />
+          )}
+
+          {channel === 'chat' && (commTab === 'all') && !taskSid && conversationSid && (
+            <ChatWindow
+              baseUrl={baseUrl}
               conversationSid={conversationSid}
               identity="associate1"
+              workerDisplayName={worker?.attributes?.full_name || worker?.friendlyName}
             />
           )}
 

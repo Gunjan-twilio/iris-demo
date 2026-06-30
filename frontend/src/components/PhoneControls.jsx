@@ -5,12 +5,14 @@ export default function PhoneControls({ call, sellerName, sellerPhone, onEnd }) 
 
   useEffect(() => {
     if (!call) return;
+    const voiceSDKCall = call.call;
+    if (!voiceSDKCall) return;
     const handleDisconnect = () => onEnd();
-    call.on?.('disconnected', handleDisconnect);
-    call.on?.('disconnect', handleDisconnect);
+    voiceSDKCall.on('disconnect', handleDisconnect);
+    voiceSDKCall.on('cancel', handleDisconnect);
     return () => {
-      call.off?.('disconnected', handleDisconnect);
-      call.off?.('disconnect', handleDisconnect);
+      voiceSDKCall.off('disconnect', handleDisconnect);
+      voiceSDKCall.off('cancel', handleDisconnect);
     };
   }, [call]);
 

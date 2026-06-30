@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ChatWindow from './ChatWindow.jsx';
+import OutboundDialerModal from './OutboundDialerModal.jsx';
+import WebchatWidget from './WebchatWidget.jsx';
 
 const CHANNEL_LABELS = { chat: 'Chat', email: 'Email', phone: 'Phone' };
 const STATUS = {
@@ -63,6 +65,8 @@ export default function SellerPanel({ baseUrl }) {
   const [conversationSid, setConversationSid] = useState(null);
   const [newCaseForm, setNewCaseForm] = useState({ help_category: 'payments', channel: 'chat', seller_phone: '', case_summary: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [webchatActive, setWebchatActive] = useState(false);
+  const [hideResolved, setHideResolved] = useState(true);
   const pollRef = useRef(null);
 
   const loadCases = async (email) => {
@@ -109,6 +113,13 @@ export default function SellerPanel({ baseUrl }) {
 
   const handleNewCaseSubmit = async (e) => {
     e.preventDefault();
+
+    if (newCaseForm.channel === 'chat') {
+      setWebchatActive(true);
+      setView('webchat');
+      return; // form values are passed directly to WebchatWidget below
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`${baseUrl}/create-task`, {
@@ -217,6 +228,7 @@ export default function SellerPanel({ baseUrl }) {
 
     // CASES LIST
     if (view === 'cases') {
+      const visibleCases = hideResolved ? cases.filter(c => c.status !== 'resolved') : cases;
       return (
         <>
           <div className="iris-view-header">
@@ -224,10 +236,28 @@ export default function SellerPanel({ baseUrl }) {
             <span className="iris-view-title">Your Cases</span>
             <button className="iris-btn-sm" onClick={() => setView('new-case')}>+ New</button>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
+              <div
+                onClick={() => setHideResolved(v => !v)}
+                style={{
+                  width: 32, height: 18, borderRadius: 9, background: hideResolved ? '#0071CE' : '#d1d5db',
+                  position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 2, left: hideResolved ? 16 : 2,
+                  width: 14, height: 14, borderRadius: '50%', background: 'white',
+                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }} />
+              </div>
+              Hide resolved
+            </label>
+          </div>
           {loadingCases && <div className="empty-state">Loading...</div>}
-          {!loadingCases && cases.length === 0 && <div className="empty-state" style={{paddingTop:32}}>No cases yet.</div>}
+          {!loadingCases && visibleCases.length === 0 && <div className="empty-state" style={{paddingTop:32}}>{hideResolved ? 'No open cases.' : 'No cases yet.'}</div>}
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {cases.map(c => {
+            {visibleCases.map(c => {
               const st = STATUS[c.status] || STATUS.new;
               return (
                 <button key={c.case_id} className="iris-case-row" onClick={() => openCase(c)}>
@@ -236,7 +266,10 @@ export default function SellerPanel({ baseUrl }) {
                     <span className="iris-status-chip" style={{background:st.bg,color:st.color}}>{st.label}</span>
                   </div>
                   <div style={{fontSize:13,color:'#374151',fontWeight:500,marginBottom:3}}>{c.case_summary || '—'}</div>
-                  <div style={{fontSize:12,color:'#9ca3af'}}>{CHANNEL_LABELS[c.channel] || c.channel} · {c.help_category}</div>
+                  <div style={{fontSize:12,color:'#9ca3af'}}>
+                    {CHANNEL_LABELS[c.channel] || c.channel} · {c.help_category}
+                    {c.updated_at && <span style={{marginLeft:8}}>{new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>}
+                  </div>
                 </button>
               );
             })}
@@ -276,13 +309,38 @@ export default function SellerPanel({ baseUrl }) {
             {newCaseForm.channel === 'phone' && (
               <div className="form-group">
                 <label>Your Phone Number</label>
-                <input value={newCaseForm.seller_phone} onChange={e => setNewCaseForm(f=>({...f,seller_phone:e.target.value}))} placeholder="+1xxxxxxxxxx" required />
+                <OutboundDialerModal
+                  value={newCaseForm.seller_phone}
+                  onChange={v => setNewCaseForm(f => ({ ...f, seller_phone: v }))}
+                />
               </div>
             )}
             <button type="submit" className="iris-btn-primary" disabled={submitting}>
               {submitting ? 'Submitting...' : 'Submit Case'}
             </button>
           </form>
+        </>
+      );
+    }
+
+    // WEBCHAT
+    if (view === 'webchat' && webchatActive) {
+      return (
+        <>
+          <div className="iris-view-header">
+            <button className="iris-back-btn" onClick={() => { setWebchatActive(false); setView('new-case'); }}>← Back</button>
+            <span className="iris-view-title">Chat Support</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <WebchatWidget
+              baseUrl={baseUrl}
+              sellerName={seller.name}
+              sellerEmail={seller.email}
+              helpCategory={newCaseForm.help_category}
+              caseSummary={newCaseForm.case_summary}
+              onEnd={() => { setWebchatActive(false); setView('home'); loadCases(seller.email); }}
+            />
+          </div>
         </>
       );
     }
@@ -313,7 +371,14 @@ export default function SellerPanel({ baseUrl }) {
             <div className="iris-status-msg">Connecting you to an associate via chat...</div>
           )}
           {channel === 'chat' && conversationSid && !isResolved && (
-            <ChatWindow baseUrl={baseUrl} conversationSid={conversationSid} identity={seller.email} compact />
+            <ChatWindow
+              baseUrl={baseUrl}
+              conversationSid={conversationSid}
+              identity={seller.email}
+              workerDisplayName={activeCase?.assigned_worker}
+              onEnd={goCases}
+              compact
+            />
           )}
           {channel === 'email' && !isResolved && (
             <div className="iris-status-msg">An associate will respond to <strong>{seller.email}</strong></div>
@@ -346,7 +411,7 @@ export default function SellerPanel({ baseUrl }) {
             <button className="iris-home-link" onClick={goHome}>Home</button>
           )}
         </div>
-        <div className="iris-panel-body">
+        <div className={`iris-panel-body${view === 'webchat' ? ' iris-panel-body--webchat' : ''}`}>
           {renderPanel()}
         </div>
       </div>
