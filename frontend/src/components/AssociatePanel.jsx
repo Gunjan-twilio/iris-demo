@@ -384,6 +384,11 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         </div>
         <div className="iris-assoc-nav-right">
           {!flexClient && <span style={{fontSize:12,color:'#9ca3af',marginRight:12}}>Connecting...</span>}
+          {worker && (
+            <span style={{fontSize:13,color:'#374151',marginRight:12,fontWeight:500}}>
+              {worker.attributes?.full_name || worker.friendlyName}
+            </span>
+          )}
           <div style={{position:'relative'}}>
             <button
               className="iris-assoc-status-btn"
