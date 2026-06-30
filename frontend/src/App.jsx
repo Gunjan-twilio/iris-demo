@@ -82,7 +82,7 @@ function AssociatePage() {
       const response = await getLoginDetails({
         ssoProfileSid: authConfig.configList[0].ssoProfileSid,
         clientId: authConfig.configList[0].clientId,
-        redirectUrl: window.location.origin,
+        redirectUrl: window.location.origin + window.location.pathname,
       });
       localStorage.setItem('login-details', JSON.stringify(response));
       window.location.href = response.loginUrl;
