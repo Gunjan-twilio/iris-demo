@@ -32,6 +32,7 @@ exports.handler = async function (context, event, callback) {
       seller_phone: r.fields.seller_phone || '',
       conversation_sid: r.fields.conversation_sid || '',
       task_sid: r.fields.task_sid || '',
+      updated_at: r.fields.updated_at || r.fields.created_at || '',
     }));
 
     response.setBody({ cases });
