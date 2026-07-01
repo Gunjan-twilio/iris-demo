@@ -17,7 +17,7 @@ const STATUS = {
   wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
   resolved: { bg: '#E8F5E9', color: '#2E7D32', label: 'Resolved' },
 };
-const CHANNEL_ICON = { email: '✉', chat: '💬', phone: '📞' };
+const CHANNEL_ICON = { email: '✉', chat: '💬', phone: '📞', call_now: '📲' };
 
 export default function AssociatePanel({ baseUrl, flexClient }) {
   const [worker, setWorker] = useState(null);
@@ -97,7 +97,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         const channelType = attrs.channel;
         const taskChannel = res.task.taskChannelUniqueName;
 
-        if (channelType === 'phone' && taskChannel !== 'voice') {
+        if ((channelType === 'phone' || channelType === 'call_now') && taskChannel !== 'voice') {
           loadRecentCases();
           return;
         }
@@ -304,6 +304,29 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
             isDialingRef.current = false;
           }
         }
+      }
+
+      if (channel === 'call_now') {
+        const caseId = pendingAttrs?.case_id;
+        const conferenceName = pendingAttrs?.conference_name || caseId;
+        const associateIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate1';
+        const attrs = { ...pendingAttrs };
+
+        setOpenCases(prev => {
+          if (prev.find(c => c.case_id === caseId)) return prev;
+          return [...prev, { case_id: caseId, attrs, taskSid }];
+        });
+        setActiveTabId(caseId);
+        setPendingReservation(null);
+        setPendingAttrs(null);
+
+        await flexClient.execute(new CompleteTask(taskSid)).catch(e => console.warn('[CompleteTask call_now]', e.message));
+
+        await fetch(`${baseUrl}/associate-join-conference`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conference_name: conferenceName, associate_identity: associateIdentity }),
+        });
       }
     } catch (err) {
       isDialingRef.current = false;
@@ -759,6 +782,13 @@ function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onC
             <div className="iris-assoc-comm-empty">
               <div style={{fontSize:32,marginBottom:8}}>📞</div>
               <div style={{fontSize:13,color:'#9ca3af'}}>Call ended or not yet started</div>
+            </div>
+          )}
+
+          {channel === 'call_now' && !voiceCall && (
+            <div className="iris-assoc-comm-empty">
+              <div style={{fontSize:32,marginBottom:8}}>📲</div>
+              <div style={{fontSize:13,color:'#9ca3af'}}>Connecting via Call Now conference...</div>
             </div>
           )}
 

@@ -3,7 +3,7 @@ import ChatWindow from './ChatWindow.jsx';
 import OutboundDialerModal from './OutboundDialerModal.jsx';
 import WebchatWidget from './WebchatWidget.jsx';
 
-const CHANNEL_LABELS = { chat: 'Chat', email: 'Email', phone: 'Phone' };
+const CHANNEL_LABELS = { chat: 'Chat', email: 'Email', phone: 'Phone', call_now: 'Call Now' };
 const STATUS = {
   new:      { bg: '#EBF5FB', color: '#1565C0', label: 'Waiting' },
   wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
@@ -303,10 +303,11 @@ export default function SellerPanel({ baseUrl }) {
               <select value={newCaseForm.channel} onChange={e => setNewCaseForm(f=>({...f,channel:e.target.value}))}>
                 <option value="chat">Chat</option>
                 <option value="phone">Phone Callback</option>
+                <option value="call_now">Call Now</option>
                 <option value="email">Email</option>
               </select>
             </div>
-            {newCaseForm.channel === 'phone' && (
+            {(newCaseForm.channel === 'phone' || newCaseForm.channel === 'call_now') && (
               <div className="form-group">
                 <label>Your Phone Number</label>
                 <OutboundDialerModal
@@ -385,6 +386,9 @@ export default function SellerPanel({ baseUrl }) {
           )}
           {channel === 'phone' && !isResolved && (
             <div className="iris-status-msg">An associate will call you at <strong>{activeCase.seller_phone}</strong></div>
+          )}
+          {channel === 'call_now' && !isResolved && (
+            <div className="iris-status-msg">We're calling you now at <strong>{activeCase.seller_phone}</strong>. Press 1 to connect to an associate.</div>
           )}
           {isResolved && (
             <div className="iris-status-msg iris-status-resolved">✓ This case has been resolved. Thank you!</div>

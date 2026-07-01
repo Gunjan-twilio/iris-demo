@@ -68,8 +68,27 @@ exports.handler = async function (context, event, callback) {
       const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
       conversation_sid = taskAttrs.conversationSid || '';
 
+    } else if (channel === 'call_now') {
+      // Call Now: immediately dial seller → IVR creates the TaskRouter task after press-1
+      if (!seller_phone) {
+        response.setStatusCode(400);
+        response.setBody({ error: 'seller_phone is required for call_now channel' });
+        return callback(null, response);
+      }
+      const ivrUrl =
+        `https://${context.DOMAIN_NAME}/call-now-ivr` +
+        `?case_id=${encodeURIComponent(case_id)}` +
+        `&seller_name=${encodeURIComponent(seller_name)}` +
+        `&help_category=${encodeURIComponent(help_category)}`;
+      await client.calls.create({
+        to: seller_phone,
+        from: context.TWILIO_PHONE_NUMBER,
+        url: ivrUrl,
+        method: 'GET',
+      });
+
     } else {
-      // Phone: placeholder task on default channel — keeps audio pipeline unblocked
+      // Phone callback: placeholder task on default channel — keeps audio pipeline unblocked
       await client.taskrouter.v1
         .workspaces(context.WORKSPACE_SID)
         .tasks.create({
