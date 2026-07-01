@@ -39,7 +39,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const [recentCases, setRecentCases] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [hideResolved, setHideResolved] = useState(true);
+  const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('assoc-hideResolved') !== 'false');
 
   // Phone call state per case
   const [activeCalls, setActiveCalls] = useState({}); // { case_id: VoiceCall }
@@ -563,7 +563,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
               />
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                 <div
-                  onClick={() => setHideResolved(v => !v)}
+                  onClick={() => setHideResolved(v => { const next = !v; localStorage.setItem('assoc-hideResolved', next); return next; })}
                   style={{
                     width: 32, height: 18, borderRadius: 9, background: hideResolved ? '#0071CE' : '#d1d5db',
                     position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
@@ -746,21 +746,25 @@ function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onC
             />
           )}
 
-          {channel === 'chat' && (commTab === 'all') && taskSid && (
-            <AssociateChatPanel
-              flexClient={flexClient}
-              taskSid={taskSid}
-              worker={worker}
-              onEnd={() => onClose(false)}
-            />
+          {channel === 'chat' && (commTab === 'all') && caseEntry.restored && (
+            <CaseTranscript baseUrl={baseUrl} caseId={attrs.case_id} sellerEmail={attrs.seller_email} workerDisplayName={worker?.attributes?.full_name || worker?.friendlyName} />
           )}
 
-          {channel === 'chat' && (commTab === 'all') && !taskSid && conversationSid && (
+          {channel === 'chat' && (commTab === 'all') && !caseEntry.restored && conversationSid && (
             <ChatWindow
               baseUrl={baseUrl}
               conversationSid={conversationSid}
               identity="associate1"
               workerDisplayName={worker?.attributes?.full_name || worker?.friendlyName}
+            />
+          )}
+
+          {channel === 'chat' && (commTab === 'all') && !caseEntry.restored && !conversationSid && taskSid && (
+            <AssociateChatPanel
+              flexClient={flexClient}
+              taskSid={taskSid}
+              worker={worker}
+              onEnd={() => onClose(false)}
             />
           )}
 
@@ -805,6 +809,43 @@ function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onC
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CaseTranscript({ baseUrl, caseId, sellerEmail, workerDisplayName }) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!caseId) return;
+    fetch(`${baseUrl}/get-case-interactions?case_id=${encodeURIComponent(caseId)}`)
+      .then(r => r.json())
+      .then(data => {
+        const msgs = (data.interactions || []).flatMap(i => i.messages || []);
+        setMessages(msgs);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [caseId]);
+
+  if (loading) return <div style={{padding:16,fontSize:13,color:'#9ca3af'}}>Loading transcript...</div>;
+  if (messages.length === 0) return <div style={{padding:16,fontSize:13,color:'#9ca3af'}}>No messages recorded.</div>;
+
+  const normalizedSeller = sellerEmail?.toLowerCase().trim();
+
+  return (
+    <div className="chat-messages" style={{flex:1,overflowY:'auto'}}>
+      {messages.map(m => {
+        const normalizedAuthor = m.author?.replace(/_7C/g, '|').toLowerCase();
+        const isSeller = normalizedSeller && normalizedAuthor === normalizedSeller;
+        return (
+          <div key={m.sid} className={`message ${isSeller ? 'theirs' : 'mine'}`}>
+            <div className="message-author">{isSeller ? (sellerEmail || 'Seller') : (workerDisplayName || 'Associate')}</div>
+            {m.body}
+          </div>
+        );
+      })}
     </div>
   );
 }
