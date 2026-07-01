@@ -309,24 +309,38 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       if (channel === 'call_now') {
         const caseId = pendingAttrs?.case_id;
         const conferenceName = pendingAttrs?.conference_name || caseId;
-        const associateIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate1';
         const attrs = { ...pendingAttrs };
 
-        setOpenCases(prev => {
-          if (prev.find(c => c.case_id === caseId)) return prev;
-          return [...prev, { case_id: caseId, attrs, taskSid }];
-        });
-        setActiveTabId(caseId);
-        setPendingReservation(null);
-        setPendingAttrs(null);
-
-        await flexClient.execute(new CompleteTask(taskSid)).catch(e => console.warn('[CompleteTask call_now]', e.message));
-
-        await fetch(`${baseUrl}/associate-join-conference`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conference_name: conferenceName, associate_identity: associateIdentity }),
-        });
+        if (isDialingRef.current) return;
+        isDialingRef.current = true;
+        try {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+          // Use StartOutboundCall so the browser initiates audio — voice-handler.js
+          // detects call_now and serves <Conference> TwiML to join the named room.
+          const voiceCall = await flexClient.execute(new StartOutboundCall(conferenceName, {
+            fromNumber: import.meta.env.VITE_TWILIO_PHONE_NUMBER,
+            workflowSid: currentTask.workflowSid,
+            taskQueueSid: currentTask.queueSid,
+            attributesForTaskCreation: {
+              direction: 'outbound',
+              originating_case: caseId,
+              channel: 'call_now',
+              conference_name: conferenceName,
+            },
+          }));
+          setActiveCalls(prev => ({ ...prev, [caseId]: voiceCall }));
+          setPlaceholderTasks(prev => ({ ...prev, [caseId]: taskSid }));
+          setOpenCases(prev => {
+            if (prev.find(c => c.case_id === caseId)) return prev;
+            return [...prev, { case_id: caseId, attrs, taskSid }];
+          });
+          setActiveTabId(caseId);
+          setPendingReservation(null);
+          setPendingAttrs(null);
+          await flexClient.execute(new CompleteTask(taskSid)).catch(e => console.warn('[CompleteTask call_now]', e.message));
+        } finally {
+          isDialingRef.current = false;
+        }
       }
     } catch (err) {
       isDialingRef.current = false;
