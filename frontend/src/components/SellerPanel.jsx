@@ -66,7 +66,7 @@ export default function SellerPanel({ baseUrl }) {
   const [newCaseForm, setNewCaseForm] = useState({ help_category: 'payments', channel: 'chat', seller_phone: '', case_summary: '' });
   const [submitting, setSubmitting] = useState(false);
   const [webchatActive, setWebchatActive] = useState(false);
-  const [hideResolved, setHideResolved] = useState(true);
+  const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('seller-hideResolved') !== 'false');
   const pollRef = useRef(null);
 
   const loadCases = async (email) => {
@@ -239,7 +239,7 @@ export default function SellerPanel({ baseUrl }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
               <div
-                onClick={() => setHideResolved(v => !v)}
+                onClick={() => setHideResolved(v => { const next = !v; localStorage.setItem('seller-hideResolved', next); return next; })}
                 style={{
                   width: 32, height: 18, borderRadius: 9, background: hideResolved ? '#0071CE' : '#d1d5db',
                   position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
