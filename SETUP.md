@@ -7,7 +7,7 @@
 - Node.js 18+
 - Twilio CLI installed (`npm install -g twilio-cli`)
 - Twilio Serverless plugin (`twilio plugins:install @twilio-labs/plugin-serverless`)
-- A Twilio account (trial is fine — share the Account SID with Gunjan for credits)
+- A Twilio account with **Flex enabled** (required for TaskRouter + Conversations Service)
 - An Airtable account
 
 ---
@@ -93,14 +93,12 @@ Step 2 — Listings:
 
 ---
 
-## Step 3: Create a Conversations Service
+## Step 3: Find the Flex Conversation Service SID
 
-1. Console → **Conversations Classic** → Services → Create Service
+> **Important:** This demo uses the **Flex Conversation Service** (created automatically when Flex is provisioned). Do NOT create a new custom Conversations service — using the wrong `IS...` SID will break chat.
 
-> Despite the "Classic" label, this is the correct product for live chat in this demo. Twilio reorganized the console around newer AI products (Conversation Intelligence, Conversation Orchestrator) and renamed the standard Conversations API to "Conversations Classic". The SID starting with `IS` is what you need.
-
-2. Name it `iris-conversations`
-3. Note down `CONVERSATIONS_SERVICE_SID` (starts with `IS`)
+1. Console → Flex → Manage → Messaging → **Conversation Service SID**
+2. Copy the `IS...` SID and use it as `CONVERSATIONS_SERVICE_SID`
 
 ---
 
@@ -132,10 +130,11 @@ Step 2 — Listings:
 | `case_id` | Single line text |
 | `seller_name` | Single line text |
 | `help_category` | Single line text (options: `payments`, `listings`) |
-| `channel` | Single line text (options: `chat`, `phone`) |
+| `channel` | Single line text (options: `chat`, `phone`, `email`, `call_now`) |
 | `status` | Single line text (options: `new`, `wip`, `needs_info`, `resolved`) |
 | `task_sid` | Single line text |
 | `conversation_sid` | Single line text |
+| `seller_phone` | Single line text |
 | `assigned_worker` | Single line text |
 | `created_at` | Date |
 
@@ -145,89 +144,67 @@ Step 2 — Listings:
 
 ---
 
-## Step 7: Initialize the Twilio Functions Project
+## Step 7: Configure environment
+
+Copy the example file and fill in all values:
 
 ```bash
-cd ~/Desktop/workspace/iris-walmart-demo
-twilio serverless:init functions --empty
-cd functions
+cp .env.example .env
+# edit .env with your values from the steps above
+cp .env functions/.env
 ```
 
-Create a `.env` file inside `functions/`:
+You will also need a `frontend/.env` for the Vite app:
 
 ```
-ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-AUTH_TOKEN=your_auth_token
-API_KEY_SID=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-API_KEY_SECRET=your_api_key_secret
-WORKSPACE_SID=WSxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-WORKFLOW_SID=WWxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-CONVERSATIONS_SERVICE_SID=ISxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWIML_APP_SID=APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
-AIRTABLE_API_KEY=your_airtable_key
-AIRTABLE_BASE_ID=appxxxxxxxxxxxxxxx
+VITE_FUNCTIONS_BASE_URL=https://<your-serverless-domain>.twil.io
+VITE_BASE_PATH=/
+VITE_TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
+VITE_WORKFLOW_SID=WWxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+The `VITE_FUNCTIONS_BASE_URL` is the deployed Serverless domain — you won't have it until Step 8. You can set it after first deploy.
 
 ---
 
-## Step 8: Initialize the React Frontend
+## Step 8: Install dependencies and deploy
 
 ```bash
-cd ~/Desktop/workspace/iris-walmart-demo
-npm create vite@latest frontend -- --template react
-cd frontend
-npm install
-npm install @twilio/conversations twilio-client airtable
+npm install              # root (deploy tooling)
+cd frontend && npm install && cd ..
+npm run deploy
 ```
+
+`npm run deploy` builds the frontend and deploys functions in one step. Your Serverless domain will be printed at the end — copy it.
 
 ---
 
-## Step 9: Local Development
+## Step 9: Post-deploy configuration
 
-Run functions locally:
-```bash
-cd functions
-twilio serverless:start
-# Runs on http://localhost:3000
-```
+After first deploy:
 
-Run frontend locally:
-```bash
-cd frontend
-npm run dev
-# Runs on http://localhost:5173
-```
+1. **TwiML App voice URL** — update your TwiML App's Voice Request URL to:
+   ```
+   https://<your-domain>.twil.io/voice-handler
+   ```
 
-Use ngrok or Twilio CLI's built-in tunnel to expose local functions for TaskRouter webhooks during development.
+2. **Frontend env** — set `VITE_FUNCTIONS_BASE_URL` in `frontend/.env` to the domain above, then redeploy:
+   ```bash
+   npm run deploy
+   ```
 
----
+3. **Airtable `channel` field** — add these valid values to the single-select (or allow free text):
+   `chat`, `phone`, `email`, `call_now`
 
-## Step 10: Deploy Functions
-
-```bash
-cd functions
-twilio serverless:deploy
-```
-
-After deploy, you'll get a base URL like `https://iris-walmart-demo-xxxx.twil.io`. Then:
-
-1. Go back to your TwiML App → update Voice Request URL to `https://iris-walmart-demo-xxxx.twil.io/voice-handler`
-2. Go to TaskRouter Workspace → Event Callbacks → set to `https://iris-walmart-demo-xxxx.twil.io/task-event`
+4. **TaskRouter activities** — the associate status menu is driven live from TaskRouter. You can add custom activities (Lunch, Training, etc.) via Console → TaskRouter → Workspace → Activities.
 
 ---
 
-## What Gets Built Next
+## Channels supported
 
-Once all of the above is in place, the following files will be generated:
-
-| File | Purpose |
+| Channel | How it works |
 |---|---|
-| `functions/create-task.js` | Seller submits a case → creates TaskRouter task + Airtable record |
-| `functions/accept-reservation.js` | Associate accepts a task |
-| `functions/reject-reservation.js` | Associate rejects a task |
-| `functions/token.js` | Issues access tokens for browser Voice + Chat SDKs |
-| `functions/voice-handler.js` | TwiML for outbound callback to seller |
-| `functions/task-event.js` | Webhook that receives TaskRouter events |
-| `frontend/SellerPanel.jsx` | Seller submits case, joins chat |
-| `frontend/AssociatePanel.jsx` | IRIS view — incoming task, accept/reject, chat/phone UI |
+| **chat** | Creates a plain TaskRouter task; `initialize-accepted-chat` creates a Conversation on accept |
+| **phone** | Associate accepts, `StartOutboundCall` dials seller's number, bridges via Voice conference |
+| **email** | Uses Flex Interactions API (`type: email`); replies from inbox or portal append to the same thread |
+| **call_now** | `create-task` dials seller immediately → IVR → press 1 → `<Enqueue>` into TaskRouter → hold music → associate accepts via `AcceptTask` |
