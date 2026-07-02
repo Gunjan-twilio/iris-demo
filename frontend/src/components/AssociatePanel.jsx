@@ -97,7 +97,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         const channelType = attrs.channel;
         const taskChannel = res.task.taskChannelUniqueName;
 
-        if ((channelType === 'phone' || channelType === 'call_now') && taskChannel !== 'voice') {
+        if (channelType === 'phone' && taskChannel !== 'voice') {
           loadRecentCases();
           return;
         }
