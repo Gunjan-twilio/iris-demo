@@ -4,7 +4,7 @@ import EmailThreadView from './EmailThreadView.jsx';
 
 const CHANNELS = ['email', 'phone', 'chat'];
 
-export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory, sellerEmail, refreshTrigger }) {
+export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory, sellerEmail, refreshTrigger, workerIdentity }) {
   const [activeTab, setActiveTab] = useState('email');
   const [interactions, setInteractions] = useState([]);
   const [expanded, setExpanded] = useState({});
@@ -95,7 +95,7 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
               <EmailThreadView
                 baseUrl={baseUrl}
                 conversationSid={activeEmailConversationSid}
-                identity="associate1"
+                identity={workerIdentity}
                 sellerEmail={sellerEmail}
                 onEnd={() => {
                   setActiveEmailConversationSid(null);
@@ -221,7 +221,7 @@ function InteractionRow({ interaction: i, expanded, onToggle, onResume, formatDa
       {expanded && i.messages.length > 0 && (
         <div className="transcript">
           {i.messages.map(m => (
-            <div key={m.sid} className={`transcript-msg ${m.author === 'associate1' ? 'mine' : 'theirs'}`}>
+            <div key={m.sid} className={`transcript-msg ${m.author === workerIdentity ? 'mine' : 'theirs'}`}>
               <div className="transcript-author">{m.author}</div>
               <div>{m.body}</div>
             </div>

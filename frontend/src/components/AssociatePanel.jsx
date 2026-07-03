@@ -6,11 +6,18 @@ import {
   CompleteTask,
   SetCurrentActivity,
 } from '@twilio/flex-sdk';
-import { StartOutboundCall } from '@twilio/flex-sdk/actions/Voice';
+import { StartOutboundCall, AddVoiceEventListener, VoiceClientEvent } from '@twilio/flex-sdk/actions/Voice';
+import { Device } from '@twilio/voice-sdk';
 import ChatWindow from './ChatWindow.jsx';
 import AssociateChatPanel from './AssociateChatPanel.jsx';
 import EmailThreadView from './EmailThreadView.jsx';
 import PhoneControls from './PhoneControls.jsx';
+
+function workerDisplayName(worker) {
+  const full = worker?.attributes?.full_name;
+  if (full && !full.includes('@')) return full;
+  return worker?.attributes?.public_identity || worker?.friendlyName || 'Associate';
+}
 
 const STATUS = {
   new:      { bg: '#EBF5FB', color: '#1565C0', label: 'Waiting' },
@@ -140,6 +147,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       Array.from(w.reservations.values()).forEach(handleReservation);
       w.on('activityUpdated', u => setActivity(u.activity.name));
       w.on('reservationCreated', handleReservation);
+
     };
 
     init().catch(console.error);
@@ -206,6 +214,64 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     const taskSid = currentTask.sid;
 
     try {
+      if (channel === 'call_now') {
+        const attrs = { ...pendingAttrs };
+        const workerIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate';
+
+        // Open case tab immediately so the associate sees it while the call bridges
+        setOpenCases(prev => {
+          if (prev.find(c => c.case_id === attrs.case_id)) return prev;
+          return [...prev, { case_id: attrs.case_id, attrs, taskSid }];
+        });
+        setActiveTabId(attrs.case_id);
+        setPendingReservation(null);
+        setPendingAttrs(null);
+
+        // Mint a VoiceGrant token and register a Device so the dequeue call can land in the browser
+        let unsubscribeVoiceListener = null;
+        try {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+          const vtRes = await fetch(`${baseUrl}/voice-token?identity=${encodeURIComponent(workerIdentity)}`);
+          const { token: voiceJwt } = await vtRes.json();
+          const voiceDevice = new Device(voiceJwt, { logLevel: 'warn' });
+          // Auto-accept the raw incoming call so audio flows — autoAcceptIncomingCalls
+          // only applies to the SDK's internal voice controller, not a custom Device.
+          voiceDevice.on('incoming', call => call.accept());
+          await voiceDevice.register();
+
+          const { unsubscribe } = await flexClient.execute(
+            new AddVoiceEventListener(VoiceClientEvent.Incoming, (voiceCall) => {
+              setActiveCalls(prev => ({ ...prev, [attrs.case_id]: voiceCall }));
+              if (unsubscribeVoiceListener) unsubscribeVoiceListener();
+            }, { voiceDevice })
+          );
+          unsubscribeVoiceListener = unsubscribe;
+        } catch (e) {
+          console.error('[call_now] Voice Device setup failed:', e);
+        }
+
+        // dequeue bridges the enqueued seller call to the associate's registered Voice Device
+        await pendingReservation.dequeue({
+          to: `client:${workerIdentity}`,
+          from: import.meta.env.VITE_TWILIO_PHONE_NUMBER,
+        });
+
+        await fetch(`${baseUrl}/accept-reservation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task_sid: taskSid,
+            reservation_sid: pendingReservation.sid,
+            channel,
+            seller_phone: attrs?.seller_phone || '',
+            case_id: attrs?.case_id,
+            worker_name: worker?.attributes?.full_name || worker?.friendlyName || '',
+          }),
+        });
+
+        return;
+      }
+
       // Accept the task — 48917 conference errors are expected for non-voice tasks
       try {
         await flexClient.execute(new AcceptTask(taskSid));
@@ -239,13 +305,14 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
 
         // Only run initialize-accepted-chat for plain TaskRouter chat tasks (no pre-existing conversation)
         if (!existingConversationSid) {
+          const workerIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate';
           const initRes = await fetch(`${baseUrl}/initialize-accepted-chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               taskSid,
               sellerEmail: pendingAttrs?.seller_email || '',
-              associateIdentity: 'associate1',
+              associateIdentity: workerIdentity,
               caseId: pendingAttrs?.case_id,
             }),
           });
@@ -394,6 +461,14 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
               })()}
             </span>
           )}
+          <button
+            style={{fontSize:12,color:'#9ca3af',background:'none',border:'none',cursor:'pointer',marginRight:8,padding:'4px 8px'}}
+            onClick={() => {
+              localStorage.removeItem('jweToken');
+              localStorage.removeItem('refreshToken');
+              window.location.reload();
+            }}
+          >Sign out</button>
           <div style={{position:'relative'}}>
             <button
               className="iris-assoc-status-btn"
@@ -605,6 +680,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
           baseUrl={baseUrl}
           flexClient={flexClient}
           worker={worker}
+          workerIdentity={worker?.attributes?.contact_uri?.replace('client:', '') || 'associate'}
           caseEntry={activeCase}
           voiceCall={activeCalls[activeCase.case_id] || null}
           onClose={(resolve) => closeCase(activeCase.case_id, resolve)}
@@ -624,7 +700,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   );
 }
 
-function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onClose, onVoiceEnd, onCallStarted }) {
+function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry, voiceCall, onClose, onVoiceEnd, onCallStarted }) {
   const [commTab, setCommTab] = useState('all');
   const [isDialing, setIsDialing] = useState(false);
   const attrs = caseEntry.attrs || {};
@@ -725,15 +801,15 @@ function CaseDetailView({ baseUrl, flexClient, worker, caseEntry, voiceCall, onC
           )}
 
           {channel === 'chat' && (commTab === 'all') && caseEntry.restored && (
-            <CaseTranscript baseUrl={baseUrl} caseId={attrs.case_id} sellerEmail={attrs.seller_email} workerDisplayName={worker?.attributes?.full_name || worker?.friendlyName} />
+            <CaseTranscript baseUrl={baseUrl} caseId={attrs.case_id} sellerEmail={attrs.seller_email} workerDisplayName={workerDisplayName(worker)} />
           )}
 
           {channel === 'chat' && (commTab === 'all') && !caseEntry.restored && conversationSid && (
             <ChatWindow
               baseUrl={baseUrl}
               conversationSid={conversationSid}
-              identity="associate1"
-              workerDisplayName={worker?.attributes?.full_name || worker?.friendlyName}
+              identity={workerIdentity}
+              workerDisplayName={workerDisplayName(worker)}
             />
           )}
 

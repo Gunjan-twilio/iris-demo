@@ -27,7 +27,7 @@ exports.handler = async function (context, event, callback) {
       .services(context.CONVERSATIONS_SERVICE_SID)
       .conversations(conversation_sid)
       .messages.create({
-        author: author || 'associate1',
+        author: author || 'associate',
         body,
         attributes: JSON.stringify({ subject: subject || '' }),
       });

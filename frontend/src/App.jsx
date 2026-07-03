@@ -56,8 +56,11 @@ function AssociatePage() {
       : { autoUpdateToken: false };
 
     createClient(jweToken, {
-      logLevel: 'debug',
+      logLevel: 'warn',
       session: sessionOptions,
+      voiceOptions: {
+        autoAcceptIncomingCalls: true,
+      },
     }).then(client => {
       client.addListener('tokenUpdated', token => {
         localStorage.setItem('jweToken', token);

@@ -14,7 +14,7 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
   const [loadingPreview, setLoadingPreview] = useState(false);
   const msgListenerRef = useRef(null);
 
-  const isAssociate = identity === 'associate1';
+  const isAssociate = !!identity; // any identity passed in means we're the associate side
 
   // Load templates
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
     });
   };
 
-  const displayName = (author) => author === 'associate1' ? 'IRIS Support' : author;
+  const displayName = (author) => author === identity ? 'IRIS Support' : author;
 
   const toggleCollapse = (sid) => setCollapsed(prev => ({ ...prev, [sid]: !prev[sid] }));
 
@@ -194,7 +194,7 @@ export default function EmailThreadView({ baseUrl, flexClient, taskSid, conversa
           return (
             <div key={m.sid} className={`email-message-card ${isCollapsedMsg ? 'collapsed' : ''}`}>
               <div className="email-message-header" onClick={() => !isLast && toggleCollapse(m.sid)}>
-                <div className="email-message-avatar" style={{ background: m.author === 'associate1' ? '#0b3d91' : '#6b7280' }}>
+                <div className="email-message-avatar" style={{ background: m.author === identity ? '#0b3d91' : '#6b7280' }}>
                   {displayName(m.author).charAt(0).toUpperCase()}
                 </div>
                 <div className="email-message-meta">

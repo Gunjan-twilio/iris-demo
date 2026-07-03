@@ -1,7 +1,7 @@
 exports.handler = function (context, event, callback) {
+  console.log('[IVR] event:', JSON.stringify(event));
   const response = new Twilio.Response();
   response.appendHeader('Content-Type', 'text/xml');
-
   const twiml = new Twilio.twiml.VoiceResponse();
   const digit = event.Digits;
   const caseId = event.case_id;
@@ -23,13 +23,13 @@ exports.handler = function (context, event, callback) {
     );
     twiml.redirect(ivrUrl);
   } else if (digit === '1') {
-    // Enqueue into TaskRouter — Twilio bridges the call when associate accepts
     const enqueue = twiml.enqueue({
       workflowSid: context.WORKFLOW_SID,
       waitUrl: `${baseUrl}/call-now-wait`,
       waitUrlMethod: 'GET',
     });
     enqueue.task(JSON.stringify({
+      skill: helpCategory,
       channel: 'call_now',
       case_id: caseId,
       seller_name: sellerName,
