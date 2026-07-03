@@ -25,9 +25,12 @@ Twilio Serverless Functions. Deploy from `functions/` directory.
 Key functions:
 - `token.js` — mints Flex token for associate via Flex v4 Users API
 - `seller-token.js` — mints standard AccessToken with `ChatGrant` for any identity (used by both seller and associate for Conversations SDK)
-- `create-task.js` — creates TaskRouter task for all 3 channels
+- `voice-token.js` — mints standard AccessToken with `VoiceGrant` for browser Device registration (Call Now only)
+- `create-task.js` — creates TaskRouter task for all 4 channels
 - `initialize-accepted-chat.js` — called on associate accept for chat: creates Conversation, adds both participants, stamps `conversationSid` onto task attributes and Airtable
 - `accept-reservation.js` — updates Airtable case status to `wip`
+- `call-now-ivr.js` — TwiML IVR for Call Now: plays greeting, captures digit 1, `<Enqueue>`s caller into TaskRouter with task attributes
+- `call-now-wait.js` — hold music TwiML served while seller waits in queue
 - `get-seller-cases.js` — seller polls this; returns `seller_phone` field
 - `resolve-case.js` — marks case resolved
 
@@ -53,7 +56,7 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 |---|---|
 | Workspace (Flex) | `WSe1efb8c6590e11c6141f6aac9c23df97` |
 | Workflow | `WWe2b75d2d19c759cf5d587a9095e9f475` |
-| Worker (associate1) | `WK0661efe194e06fd43a88866fbe1562ba` |
+| Worker (SSO) | see TaskRouter console — identity derived from `contact_uri` |
 | Conversations Service | `ISdb559a91e4f148f8841b03e42a03a2a7` (**Flex Conversation Service** — NOT `retail-conversations`) |
 | TwiML App | `AP8357031085f0c552c6cdf59ac9cb2208` |
 | Phone Number | `+19714552092` |
@@ -73,7 +76,8 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 
 ### Chat
 - `create-task.js` creates a plain TaskRouter task on `chat` channel, `conversationSid: ''`
-- On accept: `initialize-accepted-chat` endpoint creates Conversation, adds `sellerEmail` + `associate1` as participants, stamps `conversationSid` onto task attrs and Airtable
+- On accept: `initialize-accepted-chat` endpoint creates Conversation, adds `sellerEmail` + worker identity as participants, stamps `conversationSid` onto task attrs and Airtable
+- Worker identity is derived dynamically from `worker.attributes.contact_uri.replace('client:', '')` — not hardcoded
 - **Race condition handled:** `attachReservationListeners` `accepted` event may fire before `initialize-accepted-chat` returns — `setOpenCases` merges `conversationSid` into existing entry instead of deduping
 - Seller `ChatWindow` only renders once Airtable poll sees a populated `conversation_sid`
 - Both sides connect to Conversation via `seller-token` endpoint + `ConversationsClient.create()`
@@ -83,15 +87,34 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 - Channel and Routing params must be **pre-stringified JSON** passed as strings — SDK form-path serialization otherwise breaks the Flex v1 API
 - Routing properties must use **snake_case** keys: `workspace_sid`, `workflow_sid`, `task_channel_unique_name`
 
+### Call Now
+- `create-task.js` places an outbound call to `seller_phone` with TwiML pointing at `call-now-ivr`
+- IVR greets seller, waits for digit 1, then `<Enqueue workflowSid>` puts the live call into TaskRouter with task attributes (`skill`, `channel: call_now`, `case_id`, etc.)
+- Hold music plays from `call-now-wait` while seller waits
+- Associate accepts via `reservation.dequeue()` — NOT `AcceptTask` or `reservation.accept()`
+  - `dequeue()` tells Twilio to dial `client:WORKER_IDENTITY` and bridge the enqueued call to it
+- Before calling `dequeue()`: `voice-token` endpoint mints a VoiceGrant JWT, a `@twilio/voice-sdk` `Device` is registered in the browser, and `voiceDevice.on('incoming', call => call.accept())` auto-answers the inbound leg
+- `AddVoiceEventListener` with `{ voiceDevice }` option captures the resulting `VoiceCall` for `PhoneControls`
+- Worker identity (`contact_uri` with `client:` stripped) is used as the `to` target for `dequeue()`
+
 ---
 
 ## Known SDK Behaviors
 
 - `flexClient` is a plain EventEmitter with only `['_events', '_eventsCount', '_maxListeners']` — no internal Conversations client exposed
+- `flexClient.voice` is always `undefined` — the Flex SDK does NOT expose a voice property on the client object
+- Voice Device is **lazy-initialized** only when `AddVoiceEventListener` or `StartOutboundCall` is executed via `flexClient.execute()`
+- The Flex JWE token does NOT contain a VoiceGrant — a separate AccessToken with `VoiceGrant` must be minted (`voice-token.js`) for browser Device registration
 - `GetConversationByTask` only works for Interactions API tasks — NOT for plain TaskRouter tasks
 - `AcceptTask` creates a voice conference via event bridge — throws error `48910` on chat/email tasks; use `reservation.accept()` for those
+- `AcceptTask` also fails on `<Enqueue>` voice tasks (Call Now) — use `reservation.dequeue()` instead
 - `reservationCreated` fires for ALL tasks including outbound voice tasks spawned by `StartOutboundCall`
 - Stale reservations on refresh: filter with `if (res.status !== 'pending') return`
+- `autoAcceptIncomingCalls: true` in `voiceOptions` only applies to the SDK's internal voice controller — has no effect on a custom `Device` passed to `AddVoiceEventListener`
+
+## Known Limitations / TODOs
+
+- **Voice Device initialization via Flex SDK:** Currently Call Now uses a workaround — a manually created `@twilio/voice-sdk` `Device` registered with a separate VoiceGrant token from `voice-token.js`. The Flex SDK should be capable of initializing a Voice Device natively via `AddVoiceEventListener` without needing a custom Device, but this requires the JWE token to contain a VoiceGrant. Investigation needed: whether the Flex v4 token mint endpoint can be configured to include a VoiceGrant, or whether `AddVoiceEventListener` without `{ voiceDevice }` option works when the worker has the `agent` role. See `AssociatePanel.jsx` call_now accept handler for the TODO comment.
 
 ---
 
@@ -100,7 +123,7 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 - Base ID: `appeJOuUh0S8pP6aT`
 - Table: `Cases`
 - Valid `help_category` values: `payments`, `listings`
-- Valid `channel` values: `chat`, `phone`, `email`
+- Valid `channel` values: `chat`, `phone`, `email`, `call_now`
 - Valid `status` values: `new`, `wip`, `needs_info`, `resolved`
 
 ---
@@ -110,3 +133,4 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 - `voice-working` — voice flow stable
 - `chat-working` — chat flow working
 - `chat-email-working` — all three channels working
+- `all-channels-working` — all four channels working including Call Now audio bridge

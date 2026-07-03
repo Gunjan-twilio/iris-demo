@@ -116,13 +116,14 @@ iris-walmart-demo/
 │   └── functions/
 │       ├── token.js              # Flex v4 SSO token for associate
 │       ├── seller-token.js       # Conversations token for seller
+│       ├── voice-token.js        # VoiceGrant token for browser Device (Call Now)
 │       ├── create-task.js        # creates TaskRouter task + Airtable record
 │       ├── accept-reservation.js # marks case wip in Airtable
 │       ├── reject-reservation.js
 │       ├── initialize-accepted-chat.js  # creates Conversation on chat accept
 │       ├── voice-handler.js      # TwiML for phone callback bridge
-│       ├── call-now-ivr.js       # TwiML IVR for Call Now channel
-│       ├── call-now-wait.js      # hold message TwiML for Call Now queue
+│       ├── call-now-ivr.js       # TwiML IVR for Call Now: gather digit, <Enqueue>
+│       ├── call-now-wait.js      # hold music TwiML while seller waits in queue
 │       ├── resolve-case.js       # marks case resolved
 │       ├── get-seller-cases.js   # seller polls for their cases
 │       ├── get-case.js           # polls a single case (conversation_sid)

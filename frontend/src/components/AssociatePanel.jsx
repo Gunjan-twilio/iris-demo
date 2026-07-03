@@ -227,15 +227,21 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         setPendingReservation(null);
         setPendingAttrs(null);
 
-        // Mint a VoiceGrant token and register a Device so the dequeue call can land in the browser
+        // TODO: Investigate whether the Flex SDK can initialize a Voice Device natively for Call Now,
+        // eliminating the need for a separate voice-token.js and manual Device registration.
+        // The current workaround: mint a VoiceGrant JWT from voice-token.js and register a
+        // @twilio/voice-sdk Device manually. The Flex SDK's AddVoiceEventListener should be able
+        // to do this natively if the JWE token contains a VoiceGrant — worth checking whether the
+        // Flex v4 token mint endpoint supports VoiceGrant inclusion, or whether calling
+        // AddVoiceEventListener without { voiceDevice } works when the worker has the 'agent' role.
         let unsubscribeVoiceListener = null;
         try {
           await navigator.mediaDevices.getUserMedia({ audio: true });
           const vtRes = await fetch(`${baseUrl}/voice-token?identity=${encodeURIComponent(workerIdentity)}`);
           const { token: voiceJwt } = await vtRes.json();
           const voiceDevice = new Device(voiceJwt, { logLevel: 'warn' });
-          // Auto-accept the raw incoming call so audio flows — autoAcceptIncomingCalls
-          // only applies to the SDK's internal voice controller, not a custom Device.
+          // autoAcceptIncomingCalls only applies to the SDK's internal voice controller, not a
+          // custom Device — must accept the raw incoming call manually for audio to flow.
           voiceDevice.on('incoming', call => call.accept());
           await voiceDevice.register();
 

@@ -75,21 +75,19 @@ Step 2 — Listings:
 
 > The workflow evaluates steps top to bottom and sends the task to the first queue whose filter matches. The `task.skill` value is set by your backend when a seller submits a case.
 
-**Create one Worker (simulates an associate):**
+**Worker setup (SSO path):**
 
-1. Workspace → Workers → Create Worker
-2. Fill in:
+This demo uses **Flex SSO** — the worker is automatically provisioned by Auth0 on first login. You do not need to create a worker manually.
 
-| Field | Value |
-|---|---|
-| Name | `Associate-1` |
-| Activity | `Offline` |
-| Attributes | `{"routing": {"skills": ["payments", "listings"]}, "contact_uri": "client:associate1"}` |
-
-3. Note down `WORKER_SID` (starts with `WK`)
+After the associate logs in for the first time:
+1. Console → TaskRouter → Workspace → Workers — you will see the SSO worker appear
+2. Update its attributes to include routing skills:
+```json
+{"routing": {"skills": ["payments", "listings"], "levels": {}}}
+```
 
 > The attributes must use the nested `routing.skills` structure to match the queue expression `routing.skills HAS "payments"`. A flat `{"skills": [...]}` will not match.
-> Activity is set to `Offline` by default — the associate will go `Available` from the IRIS UI when the demo runs.
+> The worker's `contact_uri` is set automatically by Flex SSO based on the Auth0 identity — do not set it manually.
 
 ---
 
@@ -207,4 +205,4 @@ After first deploy:
 | **chat** | Creates a plain TaskRouter task; `initialize-accepted-chat` creates a Conversation on accept |
 | **phone** | Associate accepts, `StartOutboundCall` dials seller's number, bridges via Voice conference |
 | **email** | Uses Flex Interactions API (`type: email`); replies from inbox or portal append to the same thread |
-| **call_now** | `create-task` dials seller immediately → IVR → press 1 → `<Enqueue>` into TaskRouter → hold music → associate accepts via `AcceptTask` |
+| **call_now** | `create-task` dials seller immediately → IVR → press 1 → `<Enqueue>` into TaskRouter → hold music → associate accepts via `reservation.dequeue()` which bridges the live call to the associate's browser Voice Device |
