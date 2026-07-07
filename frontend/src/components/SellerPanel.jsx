@@ -3,81 +3,159 @@ import ChatWindow from './ChatWindow.jsx';
 import OutboundDialerModal from './OutboundDialerModal.jsx';
 import WebchatWidget from './WebchatWidget.jsx';
 
-const CHANNEL_LABELS = { chat: 'Chat', email: 'Email', phone: 'Phone', call_now: 'Call Now' };
+const CHANNEL_LABELS = {
+  chat: 'Chat',
+  email: 'Email',
+  phone: 'Phone',
+  call_now: 'Call Now',
+};
 const STATUS = {
-  new:      { bg: '#EBF5FB', color: '#1565C0', label: 'Waiting' },
-  wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
+  new: { bg: '#EBF5FB', color: '#1565C0', label: 'Waiting' },
+  wip: { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
   resolved: { bg: '#E8F5E9', color: '#2E7D32', label: 'Resolved' },
 };
 
-const NAV_ITEMS = ['Home','Catalog','Pricing','Orders','Payments','Performance','Analytics','Growth','Advertising','Reports','Apps'];
+const NAV_ITEMS = [
+  'Home',
+  'Catalog',
+  'Pricing',
+  'Orders',
+  'Payments',
+  'Performance',
+  'Analytics',
+  'Growth',
+  'Advertising',
+  'Reports',
+  'Apps',
+];
 
 function WalmartBackdrop({ sellerName }) {
   return (
-    <div className="wmt-layout">
-      <aside className="wmt-nav">
-        <div className="wmt-nav-brand">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#FFC220"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9"/></svg>
+    <div className='wmt-layout'>
+      <aside className='wmt-nav'>
+        <div className='wmt-nav-brand'>
+          <svg width='18' height='18' viewBox='0 0 24 24' fill='#FFC220'>
+            <polygon points='12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9' />
+          </svg>
           <span>Seller Center</span>
         </div>
-        {NAV_ITEMS.map(item => (
-          <div key={item} className={`wmt-nav-item${item === 'Home' ? ' active' : ''}`}>{item}</div>
+        {NAV_ITEMS.map((item) => (
+          <div
+            key={item}
+            className={`wmt-nav-item${item === 'Home' ? ' active' : ''}`}
+          >
+            {item}
+          </div>
         ))}
       </aside>
-      <div className="wmt-main">
-        <header className="wmt-header">
-          <div className="wmt-search">
-            <svg width="14" height="14" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input placeholder="Try searching for Order" readOnly />
+      <div className='wmt-main'>
+        <header className='wmt-header'>
+          <div className='wmt-search'>
+            <svg
+              width='14'
+              height='14'
+              fill='none'
+              stroke='#9ca3af'
+              strokeWidth='2'
+              viewBox='0 0 24 24'
+            >
+              <circle cx='11' cy='11' r='8' />
+              <line x1='21' y1='21' x2='16.65' y2='16.65' />
+            </svg>
+            <input placeholder='Try searching for Order' readOnly />
           </div>
         </header>
-        <div className="wmt-content">
-          <h2 className="wmt-welcome">Welcome to Seller Center{sellerName ? `, ${sellerName}` : ''}</h2>
-          <div className="wmt-metrics-row">
-            {[["Today's Sales", "$0"], ["Unpaid Orders", "0"], ["Account Health", "2.76"]].map(([label, val]) => (
-              <div key={label} className="wmt-metric">
-                <div className="wmt-metric-label">{label} <span style={{color:'#9ca3af',fontSize:10}}>ⓘ</span></div>
-                <div className="wmt-metric-val">{val}</div>
+        <div className='wmt-content'>
+          <h2 className='wmt-welcome'>
+            Welcome to Seller Center{sellerName ? `, ${sellerName}` : ''}
+          </h2>
+          <div className='wmt-metrics-row'>
+            {[
+              ["Today's Sales", '$0'],
+              ['Unpaid Orders', '0'],
+              ['Account Health', '2.76'],
+            ].map(([label, val]) => (
+              <div key={label} className='wmt-metric'>
+                <div className='wmt-metric-label'>
+                  {label}{' '}
+                  <span style={{ color: '#9ca3af', fontSize: 10 }}>ⓘ</span>
+                </div>
+                <div className='wmt-metric-val'>{val}</div>
               </div>
             ))}
           </div>
-          <div className="wmt-promo-card">
+          <div className='wmt-promo-card'>
             <div>
-              <strong style={{fontSize:14,display:'block',marginBottom:6,color:'#1a1a2e'}}>Gain a competitive edge</strong>
-              <p style={{fontSize:12,color:'#6b7280',lineHeight:1.5,marginBottom:12}}>Use the Assortment Growth tool to view popular items, demand and price trends, and competitive insights.</p>
-              <button className="wmt-btn-explore">Explore</button>
+              <strong
+                style={{
+                  fontSize: 14,
+                  display: 'block',
+                  marginBottom: 6,
+                  color: '#1a1a2e',
+                }}
+              >
+                Gain a competitive edge
+              </strong>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: '#6b7280',
+                  lineHeight: 1.5,
+                  marginBottom: 12,
+                }}
+              >
+                Use the Assortment Growth tool to view popular items, demand and
+                price trends, and competitive insights.
+              </p>
+              <button className='wmt-btn-explore'>Explore</button>
             </div>
-            <div style={{fontSize:36,marginLeft:20,opacity:0.6}}>📊</div>
+            <div style={{ fontSize: 36, marginLeft: 20, opacity: 0.6 }}>📊</div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
+// for demo purposes, much of the logic is included directly in the single component below.
+// In a production app, you would likely break this into multiple components and use a state management library.
 export default function SellerPanel({ baseUrl }) {
   const [seller, setSeller] = useState(null);
-  const [loginForm, setLoginForm] = useState({ seller_name: '', seller_email: '' });
+  const [loginForm, setLoginForm] = useState({
+    seller_name: '',
+    seller_email: '',
+  });
   const [view, setView] = useState('home'); // 'home' | 'new-case' | 'cases' | 'case-detail'
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(false);
   const [activeCase, setActiveCase] = useState(null);
   const [conversationSid, setConversationSid] = useState(null);
-  const [newCaseForm, setNewCaseForm] = useState({ help_category: 'payments', channel: 'chat', seller_phone: '', case_summary: '' });
+  const [newCaseForm, setNewCaseForm] = useState({
+    help_category: 'payments',
+    channel: 'chat',
+    seller_phone: '',
+    case_summary: '',
+  });
   const [submitting, setSubmitting] = useState(false);
   const [webchatActive, setWebchatActive] = useState(false);
-  const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('seller-hideResolved') !== 'false');
+  const [hideResolved, setHideResolved] = useState(
+    () => localStorage.getItem('seller-hideResolved') !== 'false',
+  );
   const pollRef = useRef(null);
 
   const loadCases = async (email) => {
     if (!email) return;
     setLoadingCases(true);
     try {
-      const res = await fetch(`${baseUrl}/get-seller-cases?seller_email=${encodeURIComponent(email)}`);
+      const res = await fetch(
+        `${baseUrl}/get-seller-cases?seller_email=${encodeURIComponent(email)}`,
+      );
       const data = await res.json();
       setCases(data.cases || []);
-    } catch (e) { console.error(e); }
-    finally { setLoadingCases(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingCases(false);
+    }
   };
 
   const handleLogin = (e) => {
@@ -93,12 +171,22 @@ export default function SellerPanel({ baseUrl }) {
     clearInterval(pollRef.current);
     const poll = async () => {
       try {
-        const res = await fetch(`${baseUrl}/get-case?case_id=${activeCase.case_id}`);
+        const res = await fetch(
+          `${baseUrl}/get-case?case_id=${activeCase.case_id}`,
+        );
         const data = await res.json();
-        setActiveCase(prev => ({ ...prev, ...data, seller_phone: data.seller_phone || prev?.seller_phone || '' }));
+        setActiveCase((prev) => ({
+          ...prev,
+          ...data,
+          seller_phone: data.seller_phone || prev?.seller_phone || '',
+        }));
         if (data.conversation_sid) setConversationSid(data.conversation_sid);
-        setCases(prev => prev.map(c => c.case_id === data.case_id ? { ...c, ...data } : c));
-      } catch (e) { console.error(e); }
+        setCases((prev) =>
+          prev.map((c) => (c.case_id === data.case_id ? { ...c, ...data } : c)),
+        );
+      } catch (e) {
+        console.error(e);
+      }
     };
     poll();
     pollRef.current = setInterval(poll, 3000);
@@ -125,7 +213,11 @@ export default function SellerPanel({ baseUrl }) {
       const res = await fetch(`${baseUrl}/create-task`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seller_name: seller.name, seller_email: seller.email, ...newCaseForm }),
+        body: JSON.stringify({
+          seller_name: seller.name,
+          seller_email: seller.email,
+          ...newCaseForm,
+        }),
       });
       const data = await res.json();
       const newCase = {
@@ -139,11 +231,19 @@ export default function SellerPanel({ baseUrl }) {
         seller_phone: newCaseForm.seller_phone,
         conversation_sid: data.conversation_sid || '',
       };
-      setCases(prev => [newCase, ...prev]);
-      setNewCaseForm({ help_category: 'payments', channel: 'chat', seller_phone: '', case_summary: '' });
+      setCases((prev) => [newCase, ...prev]);
+      setNewCaseForm({
+        help_category: 'payments',
+        channel: 'chat',
+        seller_phone: '',
+        case_summary: '',
+      });
       openCase(newCase);
-    } catch (e) { console.error(e); }
-    finally { setSubmitting(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleResolve = async () => {
@@ -156,36 +256,66 @@ export default function SellerPanel({ baseUrl }) {
       });
       const updated = { ...activeCase, status: 'resolved' };
       setActiveCase(updated);
-      setCases(prev => prev.map(c => c.case_id === activeCase.case_id ? updated : c));
+      setCases((prev) =>
+        prev.map((c) => (c.case_id === activeCase.case_id ? updated : c)),
+      );
       clearInterval(pollRef.current);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const goHome = () => { clearInterval(pollRef.current); setView('home'); };
-  const goCases = () => { clearInterval(pollRef.current); loadCases(seller.email); setView('cases'); };
+  const goHome = () => {
+    clearInterval(pollRef.current);
+    setView('home');
+  };
+  const goCases = () => {
+    clearInterval(pollRef.current);
+    loadCases(seller.email);
+    setView('cases');
+  };
 
   const renderPanel = () => {
     // LOGIN
     if (!seller) {
       return (
         <>
-          <div className="iris-greeting">
-            <div className="iris-avatar">M</div>
+          <div className='iris-greeting'>
+            <div className='iris-avatar'>M</div>
             <div>
-              <div style={{fontWeight:600,fontSize:14}}>Hi, I'm IRIS</div>
-              <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>Your Walmart seller support assistant</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Hi, I'm IRIS</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                Your Walmart seller support assistant
+              </div>
             </div>
           </div>
-          <form onSubmit={handleLogin} style={{marginTop:16}}>
-            <div className="form-group">
+          <form onSubmit={handleLogin} style={{ marginTop: 16 }}>
+            <div className='form-group'>
               <label>Your Name</label>
-              <input value={loginForm.seller_name} onChange={e => setLoginForm(f=>({...f,seller_name:e.target.value}))} placeholder="e.g. Acme Corp" required />
+              <input
+                value={loginForm.seller_name}
+                onChange={(e) =>
+                  setLoginForm((f) => ({ ...f, seller_name: e.target.value }))
+                }
+                placeholder='e.g. Acme Corp'
+                required
+              />
             </div>
-            <div className="form-group">
+            <div className='form-group'>
               <label>Your Email</label>
-              <input type="email" value={loginForm.seller_email} onChange={e => setLoginForm(f=>({...f,seller_email:e.target.value}))} placeholder="you@example.com" required />
+              <input
+                type='email'
+                value={loginForm.seller_email}
+                onChange={(e) =>
+                  setLoginForm((f) => ({ ...f, seller_email: e.target.value }))
+                }
+                placeholder='you@example.com'
+                required
+              />
             </div>
-            <button type="submit" className="iris-btn-primary">Continue</button>
+            <button type='submit' className='iris-btn-primary'>
+              Continue
+            </button>
           </form>
         </>
       );
@@ -193,33 +323,53 @@ export default function SellerPanel({ baseUrl }) {
 
     // HOME
     if (view === 'home') {
-      const openCount = cases.filter(c => c.status !== 'resolved').length;
+      const openCount = cases.filter((c) => c.status !== 'resolved').length;
       return (
         <>
-          <div className="iris-greeting">
-            <div className="iris-avatar">M</div>
+          <div className='iris-greeting'>
+            <div className='iris-avatar'>M</div>
             <div>
-              <div style={{fontWeight:600,fontSize:14}}>Hi {seller.name.split(' ')[0]}, I'm IRIS</div>
-              <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>Smart Assistant — here when you need it.</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>
+                Hi {seller.name.split(' ')[0]}, I'm IRIS
+              </div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                Smart Assistant — here when you need it.
+              </div>
             </div>
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:4}}>
-            <button className="iris-option-row" onClick={() => setView('new-case')}>
-              <span className="iris-option-icon">✦</span>
-              <div style={{flex:1}}>
-                <div className="iris-option-label">Contact support</div>
-                <div className="iris-option-sub">Get help from our Support team</div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <button
+              className='iris-option-row'
+              onClick={() => setView('new-case')}
+            >
+              <span className='iris-option-icon'>✦</span>
+              <div style={{ flex: 1 }}>
+                <div className='iris-option-label'>Contact support</div>
+                <div className='iris-option-sub'>
+                  Get help from our Support team
+                </div>
               </div>
-              <span className="iris-chevron">›</span>
+              <span className='iris-chevron'>›</span>
             </button>
-            <button className="iris-option-row" onClick={goCases}>
-              <span className="iris-option-icon">📋</span>
-              <div style={{flex:1}}>
-                <div className="iris-option-label">Your cases</div>
-                <div className="iris-option-sub">Review and take action on open cases</div>
+            <button className='iris-option-row' onClick={goCases}>
+              <span className='iris-option-icon'>📋</span>
+              <div style={{ flex: 1 }}>
+                <div className='iris-option-label'>Your cases</div>
+                <div className='iris-option-sub'>
+                  Review and take action on open cases
+                </div>
               </div>
-              {openCount > 0 && <span className="iris-badge-count">{openCount}</span>}
-              <span className="iris-chevron">›</span>
+              {openCount > 0 && (
+                <span className='iris-badge-count'>{openCount}</span>
+              )}
+              <span className='iris-chevron'>›</span>
             </button>
           </div>
         </>
@@ -228,47 +378,128 @@ export default function SellerPanel({ baseUrl }) {
 
     // CASES LIST
     if (view === 'cases') {
-      const visibleCases = hideResolved ? cases.filter(c => c.status !== 'resolved') : cases;
+      const visibleCases = hideResolved
+        ? cases.filter((c) => c.status !== 'resolved')
+        : cases;
       return (
         <>
-          <div className="iris-view-header">
-            <button className="iris-back-btn" onClick={goHome}>← Back</button>
-            <span className="iris-view-title">Your Cases</span>
-            <button className="iris-btn-sm" onClick={() => setView('new-case')}>+ New</button>
+          <div className='iris-view-header'>
+            <button className='iris-back-btn' onClick={goHome}>
+              ← Back
+            </button>
+            <span className='iris-view-title'>Your Cases</span>
+            <button className='iris-btn-sm' onClick={() => setView('new-case')}>
+              + New
+            </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280', cursor: 'pointer', userSelect: 'none' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 10,
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                color: '#6b7280',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
               <div
-                onClick={() => setHideResolved(v => { const next = !v; localStorage.setItem('seller-hideResolved', next); return next; })}
+                onClick={() =>
+                  setHideResolved((v) => {
+                    const next = !v;
+                    localStorage.setItem('seller-hideResolved', next);
+                    return next;
+                  })
+                }
                 style={{
-                  width: 32, height: 18, borderRadius: 9, background: hideResolved ? '#0071CE' : '#d1d5db',
-                  position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
+                  width: 32,
+                  height: 18,
+                  borderRadius: 9,
+                  background: hideResolved ? '#0071CE' : '#d1d5db',
+                  position: 'relative',
+                  transition: 'background 0.2s',
+                  cursor: 'pointer',
+                  flexShrink: 0,
                 }}
               >
-                <div style={{
-                  position: 'absolute', top: 2, left: hideResolved ? 16 : 2,
-                  width: 14, height: 14, borderRadius: '50%', background: 'white',
-                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                }} />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: hideResolved ? 16 : 2,
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: 'white',
+                    transition: 'left 0.2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                />
               </div>
               Hide resolved
             </label>
           </div>
-          {loadingCases && <div className="empty-state">Loading...</div>}
-          {!loadingCases && visibleCases.length === 0 && <div className="empty-state" style={{paddingTop:32}}>{hideResolved ? 'No open cases.' : 'No cases yet.'}</div>}
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {visibleCases.map(c => {
+          {loadingCases && <div className='empty-state'>Loading...</div>}
+          {!loadingCases && visibleCases.length === 0 && (
+            <div className='empty-state' style={{ paddingTop: 32 }}>
+              {hideResolved ? 'No open cases.' : 'No cases yet.'}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {visibleCases.map((c) => {
               const st = STATUS[c.status] || STATUS.new;
               return (
-                <button key={c.case_id} className="iris-case-row" onClick={() => openCase(c)}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                    <span className="iris-case-id-chip">{c.case_id}</span>
-                    <span className="iris-status-chip" style={{background:st.bg,color:st.color}}>{st.label}</span>
+                <button
+                  key={c.case_id}
+                  className='iris-case-row'
+                  onClick={() => openCase(c)}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span className='iris-case-id-chip'>{c.case_id}</span>
+                    <span
+                      className='iris-status-chip'
+                      style={{ background: st.bg, color: st.color }}
+                    >
+                      {st.label}
+                    </span>
                   </div>
-                  <div style={{fontSize:13,color:'#374151',fontWeight:500,marginBottom:3}}>{c.case_summary || '—'}</div>
-                  <div style={{fontSize:12,color:'#9ca3af'}}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: '#374151',
+                      fontWeight: 500,
+                      marginBottom: 3,
+                    }}
+                  >
+                    {c.case_summary || '—'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#9ca3af' }}>
                     {CHANNEL_LABELS[c.channel] || c.channel} · {c.help_category}
-                    {c.updated_at && <span style={{marginLeft:8}}>{new Date(c.updated_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>}
+                    {c.updated_at && (
+                      <span style={{ marginLeft: 8 }}>
+                        {new Date(c.updated_at).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    )}
                   </div>
                 </button>
               );
@@ -282,41 +513,73 @@ export default function SellerPanel({ baseUrl }) {
     if (view === 'new-case') {
       return (
         <>
-          <div className="iris-view-header">
-            <button className="iris-back-btn" onClick={goHome}>← Back</button>
-            <span className="iris-view-title">Contact Support</span>
+          <div className='iris-view-header'>
+            <button className='iris-back-btn' onClick={goHome}>
+              ← Back
+            </button>
+            <span className='iris-view-title'>Contact Support</span>
           </div>
           <form onSubmit={handleNewCaseSubmit}>
-            <div className="form-group">
+            <div className='form-group'>
               <label>Case Summary</label>
-              <input value={newCaseForm.case_summary} onChange={e => setNewCaseForm(f=>({...f,case_summary:e.target.value}))} placeholder="Briefly describe your issue" required />
+              <input
+                value={newCaseForm.case_summary}
+                onChange={(e) =>
+                  setNewCaseForm((f) => ({
+                    ...f,
+                    case_summary: e.target.value,
+                  }))
+                }
+                placeholder='Briefly describe your issue'
+                required
+              />
             </div>
-            <div className="form-group">
+            <div className='form-group'>
               <label>Help Category</label>
-              <select value={newCaseForm.help_category} onChange={e => setNewCaseForm(f=>({...f,help_category:e.target.value}))}>
-                <option value="payments">Payments</option>
-                <option value="listings">Listings</option>
+              <select
+                value={newCaseForm.help_category}
+                onChange={(e) =>
+                  setNewCaseForm((f) => ({
+                    ...f,
+                    help_category: e.target.value,
+                  }))
+                }
+              >
+                <option value='payments'>Payments</option>
+                <option value='listings'>Listings</option>
               </select>
             </div>
-            <div className="form-group">
+            <div className='form-group'>
               <label>Contact Channel</label>
-              <select value={newCaseForm.channel} onChange={e => setNewCaseForm(f=>({...f,channel:e.target.value}))}>
-                <option value="chat">Chat</option>
-                <option value="phone">Phone Callback</option>
-                <option value="call_now">Call Now</option>
-                <option value="email">Email</option>
+              <select
+                value={newCaseForm.channel}
+                onChange={(e) =>
+                  setNewCaseForm((f) => ({ ...f, channel: e.target.value }))
+                }
+              >
+                <option value='chat'>Chat</option>
+                <option value='phone'>Phone Callback</option>
+                <option value='call_now'>Call Now</option>
+                <option value='email'>Email</option>
               </select>
             </div>
-            {(newCaseForm.channel === 'phone' || newCaseForm.channel === 'call_now') && (
-              <div className="form-group">
+            {(newCaseForm.channel === 'phone' ||
+              newCaseForm.channel === 'call_now') && (
+              <div className='form-group'>
                 <label>Your Phone Number</label>
                 <OutboundDialerModal
                   value={newCaseForm.seller_phone}
-                  onChange={v => setNewCaseForm(f => ({ ...f, seller_phone: v }))}
+                  onChange={(v) =>
+                    setNewCaseForm((f) => ({ ...f, seller_phone: v }))
+                  }
                 />
               </div>
             )}
-            <button type="submit" className="iris-btn-primary" disabled={submitting}>
+            <button
+              type='submit'
+              className='iris-btn-primary'
+              disabled={submitting}
+            >
               {submitting ? 'Submitting...' : 'Submit Case'}
             </button>
           </form>
@@ -328,18 +591,37 @@ export default function SellerPanel({ baseUrl }) {
     if (view === 'webchat' && webchatActive) {
       return (
         <>
-          <div className="iris-view-header">
-            <button className="iris-back-btn" onClick={() => { setWebchatActive(false); setView('new-case'); }}>← Back</button>
-            <span className="iris-view-title">Chat Support</span>
+          <div className='iris-view-header'>
+            <button
+              className='iris-back-btn'
+              onClick={() => {
+                setWebchatActive(false);
+                setView('new-case');
+              }}
+            >
+              ← Back
+            </button>
+            <span className='iris-view-title'>Chat Support</span>
           </div>
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             <WebchatWidget
               baseUrl={baseUrl}
               sellerName={seller.name}
               sellerEmail={seller.email}
               helpCategory={newCaseForm.help_category}
               caseSummary={newCaseForm.case_summary}
-              onEnd={() => { setWebchatActive(false); setView('home'); loadCases(seller.email); }}
+              onEnd={() => {
+                setWebchatActive(false);
+                setView('home');
+                loadCases(seller.email);
+              }}
             />
           </div>
         </>
@@ -354,22 +636,49 @@ export default function SellerPanel({ baseUrl }) {
 
       return (
         <>
-          <div className="iris-view-header">
-            <button className="iris-back-btn" onClick={goCases}>← Cases</button>
-            <span className="iris-view-title">Case Detail</span>
+          <div className='iris-view-header'>
+            <button className='iris-back-btn' onClick={goCases}>
+              ← Cases
+            </button>
+            <span className='iris-view-title'>Case Detail</span>
           </div>
 
-          <div className="iris-case-meta-card">
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-              <span className="iris-case-id-chip">{activeCase.case_id}</span>
-              <span className="iris-status-chip" style={{background:st.bg,color:st.color}}>{st.label}</span>
+          <div className='iris-case-meta-card'>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: 6,
+              }}
+            >
+              <span className='iris-case-id-chip'>{activeCase.case_id}</span>
+              <span
+                className='iris-status-chip'
+                style={{ background: st.bg, color: st.color }}
+              >
+                {st.label}
+              </span>
             </div>
-            <div style={{fontSize:13,fontWeight:500,color:'#1a1a2e',marginBottom:4}}>{activeCase.case_summary}</div>
-            <div style={{fontSize:12,color:'#9ca3af'}}>{CHANNEL_LABELS[channel]} · {activeCase.help_category}</div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: '#1a1a2e',
+                marginBottom: 4,
+              }}
+            >
+              {activeCase.case_summary}
+            </div>
+            <div style={{ fontSize: 12, color: '#9ca3af' }}>
+              {CHANNEL_LABELS[channel]} · {activeCase.help_category}
+            </div>
           </div>
 
           {channel === 'chat' && !conversationSid && !isResolved && (
-            <div className="iris-status-msg">Connecting you to an associate via chat...</div>
+            <div className='iris-status-msg'>
+              Connecting you to an associate via chat...
+            </div>
           )}
           {channel === 'chat' && conversationSid && !isResolved && (
             <ChatWindow
@@ -382,20 +691,33 @@ export default function SellerPanel({ baseUrl }) {
             />
           )}
           {channel === 'email' && !isResolved && (
-            <div className="iris-status-msg">An associate will respond to <strong>{seller.email}</strong></div>
+            <div className='iris-status-msg'>
+              An associate will respond to <strong>{seller.email}</strong>
+            </div>
           )}
           {channel === 'phone' && !isResolved && (
-            <div className="iris-status-msg">An associate will call you at <strong>{activeCase.seller_phone}</strong></div>
+            <div className='iris-status-msg'>
+              An associate will call you at{' '}
+              <strong>{activeCase.seller_phone}</strong>
+            </div>
           )}
           {channel === 'call_now' && !isResolved && (
-            <div className="iris-status-msg">We're calling you now at <strong>{activeCase.seller_phone}</strong>. Press 1 to connect to an associate.</div>
+            <div className='iris-status-msg'>
+              We're calling you now at{' '}
+              <strong>{activeCase.seller_phone}</strong>. Press 1 to connect to
+              an associate.
+            </div>
           )}
           {isResolved && (
-            <div className="iris-status-msg iris-status-resolved">✓ This case has been resolved. Thank you!</div>
+            <div className='iris-status-msg iris-status-resolved'>
+              ✓ This case has been resolved. Thank you!
+            </div>
           )}
 
           {!isResolved && (
-            <button className="iris-btn-resolve" onClick={handleResolve}>Mark as Resolved</button>
+            <button className='iris-btn-resolve' onClick={handleResolve}>
+              Mark as Resolved
+            </button>
           )}
         </>
       );
@@ -403,19 +725,25 @@ export default function SellerPanel({ baseUrl }) {
   };
 
   return (
-    <div className="wmt-full">
+    <div className='wmt-full'>
       <WalmartBackdrop sellerName={seller?.name} />
-      <div className="iris-panel">
-        <div className="iris-panel-header">
-          <div className="iris-panel-title">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#0071CE"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9"/></svg>
+      <div className='iris-panel'>
+        <div className='iris-panel-header'>
+          <div className='iris-panel-title'>
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='#0071CE'>
+              <polygon points='12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9' />
+            </svg>
             Help
           </div>
           {seller && view !== 'home' && (
-            <button className="iris-home-link" onClick={goHome}>Home</button>
+            <button className='iris-home-link' onClick={goHome}>
+              Home
+            </button>
           )}
         </div>
-        <div className={`iris-panel-body${view === 'webchat' ? ' iris-panel-body--webchat' : ''}`}>
+        <div
+          className={`iris-panel-body${view === 'webchat' ? ' iris-panel-body--webchat' : ''}`}
+        >
           {renderPanel()}
         </div>
       </div>

@@ -19,7 +19,9 @@ exports.handler = async function (context, event, callback) {
 
   if (!seller_name || !seller_email || !help_category) {
     response.setStatusCode(400);
-    response.setBody({ error: 'seller_name, seller_email, and help_category are required' });
+    response.setBody({
+      error: 'seller_name, seller_email, and help_category are required',
+    });
     return callback(null, response);
   }
 
@@ -27,7 +29,9 @@ exports.handler = async function (context, event, callback) {
 
   try {
     const client = twilio(context.ACCOUNT_SID, context.AUTH_TOKEN);
-    const base = new Airtable({ apiKey: context.AIRTABLE_API_KEY }).base(context.AIRTABLE_BASE_ID);
+    const base = new Airtable({ apiKey: context.AIRTABLE_API_KEY }).base(
+      context.AIRTABLE_BASE_ID,
+    );
 
     // 1. Create a Conversation in the Flex service
     const conversation = await client.conversations.v1
@@ -61,6 +65,7 @@ exports.handler = async function (context, event, callback) {
         'configuration.flowSid': STUDIO_FLOW_SID,
       });
 
+    // write to your own system of record
     // 4. Write Airtable case record
     await base('Cases').create({
       case_id,
@@ -76,7 +81,6 @@ exports.handler = async function (context, event, callback) {
 
     response.setBody({ case_id, conversation_sid });
     return callback(null, response);
-
   } catch (err) {
     console.error('create-webchat-interaction error:', err);
     response.setStatusCode(500);
