@@ -1,5 +1,5 @@
 # IRIS Demo Script
-**Estimated runtime: ~10 min** (2 min setup + 2 min each channel + 30 sec close)
+**Estimated runtime: ~12 min** (2 min setup + 2 min each channel + 30 sec close)
 
 ---
 
@@ -99,7 +99,40 @@ We haven't received our February marketplace payout.
 
 ---
 
-## PART 4 — Email `2 min`
+## PART 4 — Call Now `2 min`
+
+**Scenario:** Owl Shoes needs urgent help and can't wait on hold — they want someone to call them immediately.
+
+> "The fourth channel is Call Now — seller requests an immediate call, Twilio dials their phone right away."
+
+**[ Seller portal → Submit Call Now task ]**
+
+Paste into the form:
+```
+Our account was suspended and we have an active order shipping today. Need urgent help.
+```
+- Phone: `+12342659468`
+- Category: `payments`
+
+> "Twilio immediately places an outbound call to the seller's phone. While it's ringing, the seller hears an IVR — press 1 to connect to an associate."
+
+**[ Answer the call on the seller's phone → press 1 ]**
+
+> "Pressing 1 drops them into the TaskRouter queue with hold music. Simultaneously the associate gets the popup."
+
+**[ Associate CRM → Click Accept ]**
+
+> "The associate accepts — the Flex SDK bridges the live queued call directly into the browser using `reservation.dequeue()`. No conference dial-out, no TwiML bridge — the call transfers instantly."
+
+**[ Show two-way audio — speak briefly ]**
+
+> "Full phone controls — mute, hold, hang up. One accept click, live call in the browser."
+
+**[ Hang up ]**
+
+---
+
+## PART 5 — Email `2 min`
 
 **Scenario:** Owl Shoes received a chargeback on a bulk order and needs documentation guidance.
 
@@ -148,6 +181,30 @@ Perfect, we located the signed delivery receipt. We will compile the rest and su
 > "So the reason this model is compelling: you're not locked into the Flex hosted UI, but you're also not rebuilding routing, queuing, or worker presence from scratch. TaskRouter handles all of that. You write the experience you actually want — the SDK gives you the events to react to."
 
 > "Every case, message, and task state reflects back into the IRIS database in real time, so any downstream system that needs that data already has it."
+
+---
+
+## Recording Guide
+
+**Setup (do this before you start recording):**
+- Use **Loom** or **QuickTime screen recording** — capture the full screen, not just a window
+- Plug in headphones so browser audio (call controls) doesn't echo
+- Set browser zoom to 90% so both panels fit without scrolling
+- Silence notifications (Mac: Focus → Do Not Disturb)
+- Have the seller phone (`+12342659468`) nearby and on loud — you'll need to hear and press 1 during the Call Now segment
+
+**What to show on screen per segment:**
+| Segment | Show |
+|---------|------|
+| Chat | Split view — seller left, associate right |
+| Phone | Associate panel with PhoneControls visible; narrate while on call |
+| Call Now | Seller panel → phone rings → press 1 → switch to associate panel for accept → call controls |
+| Email | Split view for submit; then full associate panel for thread + Gmail reply |
+
+**Timing tips:**
+- Chat: keep message exchange to 2 back-and-forth max
+- Call Now: narrate while waiting for IVR — fills dead air
+- Email: skip live Gmail reply if running long — say "and when the seller replies, it threads back automatically"
 
 ---
 
