@@ -10,7 +10,7 @@ This demonstrates how to build a fully custom contact center UI using Twilio's r
 
 | Channel | Description |
 |---|---|
-| **Chat** | Real-time chat via Twilio Conversations SDK |
+| **Chat** | Real-time webchat via Flex Interactions API + Twilio Conversations SDK |
 | **Phone Callback** | Seller requests a callback — associate accepts, outbound call bridges both parties |
 | **Call Now** | Seller requests an immediate call — IVR connects them to hold queue, associate accepts and is bridged in |
 | **Email** | Full email threading via Flex Interactions API — replies from inbox or portal both append to the same thread |
@@ -26,25 +26,29 @@ This demonstrates how to build a fully custom contact center UI using Twilio's r
 - Walmart Seller Center branded UI
 - Submit cases across all 4 channels
 - Real-time case status polling
-- Live chat window once associate accepts
+- Instant webchat session on chat submit (Flex Interactions API — no wait for accept)
 
 ---
 
 ## Architecture
 
 ```
-Seller Portal ──► create-task ──► TaskRouter ──► reservationCreated event
-                                                        │
-                                               Associate CRM (Flex SDK)
-                                                        │
-                                                   Accept / Reject
-                                                        │
-                                    ┌───────────────────┼────────────────────┐
-                                  Chat              Phone/Call Now         Email
-                                    │                   │                   │
-                              Conversations       Voice Conference    Interactions API
-                                  SDK               (TwiML)           (email thread)
+                                             ┌─ create-webchat-interaction ─► Flex Interactions API
+Seller Portal ──► create-task ──► TaskRouter ─┤                                       │
+                                             └─────────────────────────────► reservationCreated event
+                                                                                       │
+                                                                              Associate CRM (Flex SDK)
+                                                                                       │
+                                                                                  Accept / Reject
+                                                                                       │
+                                                          ┌────────────────────────────┼───────────────────────┐
+                                                        Chat                     Phone/Call Now              Email
+                                                          │                            │                        │
+                                                    Conversations             Voice Conference /         Interactions API
+                                                        SDK                   reservation.dequeue()      (email thread)
 ```
+
+**Chat** takes a separate path: `SellerPanel` calls `create-webchat-interaction` directly (Flex Interactions API via Studio Flow), bypassing `create-task`. The seller enters the chat room immediately; the associate side receives a reservation via the normal `reservationCreated` event.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of every component.
 
@@ -54,7 +58,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of every compone
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22 (matches Twilio Serverless runtime)
 - Twilio CLI: `npm install -g twilio-cli`
 - Twilio Serverless plugin: `twilio plugins:install @twilio-labs/plugin-serverless`
 - Twilio account with Flex enabled
@@ -114,22 +118,26 @@ iris-walmart-demo/
 │   ├── .env                      # copy of root .env (needed for deploy)
 │   ├── package.json
 │   └── functions/
-│       ├── token.js              # Flex v4 SSO token for associate
-│       ├── seller-token.js       # Conversations token for seller
-│       ├── voice-token.js        # VoiceGrant token for browser Device (Call Now)
-│       ├── create-task.js        # creates TaskRouter task + Airtable record
-│       ├── accept-reservation.js # marks case wip in Airtable
-│       ├── reject-reservation.js
-│       ├── initialize-accepted-chat.js  # creates Conversation on chat accept
-│       ├── voice-handler.js      # TwiML for phone callback bridge
-│       ├── call-now-ivr.js       # TwiML IVR for Call Now: gather digit, <Enqueue>
-│       ├── call-now-wait.js      # hold music TwiML while seller waits in queue
-│       ├── resolve-case.js       # marks case resolved
-│       ├── get-seller-cases.js   # seller polls for their cases
-│       ├── get-case.js           # polls a single case (conversation_sid)
-│       ├── get-associate-cases.js
+│       ├── token.js                      # Flex v4 SSO token for associate
+│       ├── seller-token.js               # Conversations token for seller
+│       ├── voice-token.js                # VoiceGrant token for browser Device (Call Now)
+│       ├── create-task.js                # creates TaskRouter task + Airtable record (phone/email/call_now)
+│       ├── create-webchat-interaction.js # Flex Interactions API webchat session (chat channel)
+│       ├── assignment-callback.js        # TaskRouter callback; stamps task/reservation SIDs onto Airtable
+│       ├── accept-reservation.js         # marks case wip in Airtable
+│       ├── initialize-accepted-chat.js   # creates Conversation on chat accept (non-webchat path)
+│       ├── voice-handler.js              # TwiML for phone callback bridge
+│       ├── call-now-ivr.js               # TwiML IVR for Call Now: gather digit, <Enqueue>
+│       ├── call-now-wait.js              # hold music TwiML while seller waits in queue
+│       ├── resolve-case.js               # marks case resolved
+│       ├── get-seller-cases.js           # seller polls for their cases
+│       ├── get-case.js                   # polls a single case (conversation_sid)
+│       ├── get-active-case.js            # finds the current wip case for the associate
+│       ├── get-associate-cases.js        # recent case list for associate home panel
+│       ├── get-case-interactions.js      # interaction history for a case (used by CaseHistory)
 │       ├── get-queue-count.js
-│       └── ...
+│       ├── get-templates.js              # email templates from Airtable Templates table
+│       └── render-template.js            # renders a Handlebars template with case variables
 └── frontend/                     # React + Vite
     ├── .env                      # VITE_ prefixed vars
     └── src/
@@ -139,9 +147,12 @@ iris-walmart-demo/
             ├── SellerPanel.jsx
             ├── ChatWindow.jsx
             ├── AssociateChatPanel.jsx
+            ├── CaseHistory.jsx           # case history with interaction tabs and email compose
             ├── EmailThreadView.jsx
+            ├── OutboundDialer.jsx        # E.164 dial pad input
+            ├── OutboundDialerModal.jsx   # modal wrapper for OutboundDialer
             ├── PhoneControls.jsx
-            └── ...
+            └── WebchatWidget.jsx         # seller-side webchat via create-webchat-interaction
 ```
 
 ---

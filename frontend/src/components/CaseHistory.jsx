@@ -4,13 +4,26 @@ import EmailThreadView from './EmailThreadView.jsx';
 
 const CHANNELS = ['email', 'phone', 'chat'];
 
-export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory, sellerEmail, refreshTrigger, workerIdentity }) {
+// this is a simplistic (happy path) implementation of a Case History component for demo purposes.
+// In a production app, you would likely want to add more robust error handling, loading states, and pagination for large histories.
+// also consider how you want to tie together interactions across multiple channels (email, phone, chat) or
+// individual interactions that may have multiple threads (e.g. multiple email threads for a single case).
+export default function CaseHistory({
+  baseUrl,
+  caseId,
+  sellerName,
+  helpCategory,
+  sellerEmail,
+  refreshTrigger,
+  workerIdentity,
+}) {
   const [activeTab, setActiveTab] = useState('email');
   const [interactions, setInteractions] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [composingEmail, setComposingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState(sellerEmail || '');
-  const [activeEmailConversationSid, setActiveEmailConversationSid] = useState(null);
+  const [activeEmailConversationSid, setActiveEmailConversationSid] =
+    useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -20,7 +33,9 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
 
   const fetchInteractions = async () => {
     try {
-      const res = await fetch(`${baseUrl}/get-case-interactions?case_id=${caseId}`);
+      const res = await fetch(
+        `${baseUrl}/get-case-interactions?case_id=${caseId}`,
+      );
       const data = await res.json();
       setInteractions(data.interactions || []);
     } catch (err) {
@@ -29,7 +44,7 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
   };
 
   const toggleExpand = (id) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const startEmailThread = async () => {
@@ -58,22 +73,25 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
     }
   };
 
-  const byChannel = (ch) => interactions.filter(i => i.channel === ch);
+  const byChannel = (ch) => interactions.filter((i) => i.channel === ch);
 
   const formatDate = (str) => {
     if (!str) return '';
-    return new Date(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(str).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   return (
-    <div className="case-history">
-      <div className="case-history-header">
-        <span className="case-history-title">Case History</span>
-        <span className="case-id-chip">{caseId}</span>
+    <div className='case-history'>
+      <div className='case-history-header'>
+        <span className='case-history-title'>Case History</span>
+        <span className='case-id-chip'>{caseId}</span>
       </div>
 
-      <div className="tab-bar">
-        {CHANNELS.map(ch => (
+      <div className='tab-bar'>
+        {CHANNELS.map((ch) => (
           <button
             key={ch}
             className={`tab-btn${activeTab === ch ? ' active' : ''}`}
@@ -81,13 +99,13 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
           >
             {ch.charAt(0).toUpperCase() + ch.slice(1)}
             {byChannel(ch).length > 0 && (
-              <span className="tab-count">{byChannel(ch).length}</span>
+              <span className='tab-count'>{byChannel(ch).length}</span>
             )}
           </button>
         ))}
       </div>
 
-      <div className="tab-content">
+      <div className='tab-content'>
         {/* EMAIL TAB */}
         {activeTab === 'email' && (
           <div>
@@ -103,31 +121,44 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
                 }}
               />
             ) : composingEmail ? (
-              <div className="compose-email">
-                <div className="form-group" style={{ marginBottom: 10 }}>
+              <div className='compose-email'>
+                <div className='form-group' style={{ marginBottom: 10 }}>
                   <label>Seller Email</label>
                   <input
                     value={emailInput}
-                    onChange={e => setEmailInput(e.target.value)}
-                    placeholder="seller@example.com"
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder='seller@example.com'
                   />
                 </div>
-                <div className="btn-row">
-                  <button className="btn btn-primary" onClick={startEmailThread} disabled={loading}>
+                <div className='btn-row'>
+                  <button
+                    className='btn btn-primary'
+                    onClick={startEmailThread}
+                    disabled={loading}
+                  >
                     {loading ? 'Starting...' : 'Start Thread'}
                   </button>
-                  <button className="btn btn-ghost" onClick={() => setComposingEmail(false)}>Cancel</button>
+                  <button
+                    className='btn btn-ghost'
+                    onClick={() => setComposingEmail(false)}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <div>
-                <button className="btn btn-primary" style={{ marginBottom: 16 }} onClick={() => setComposingEmail(true)}>
+                <button
+                  className='btn btn-primary'
+                  style={{ marginBottom: 16 }}
+                  onClick={() => setComposingEmail(true)}
+                >
                   + New Email Thread
                 </button>
                 {byChannel('email').length === 0 ? (
-                  <div className="empty-state">No email interactions yet</div>
+                  <div className='empty-state'>No email interactions yet</div>
                 ) : (
-                  byChannel('email').map(i => (
+                  byChannel('email').map((i) => (
                     <InteractionRow
                       key={i.airtable_id}
                       interaction={i}
@@ -149,13 +180,17 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
         {activeTab === 'phone' && (
           <div>
             {byChannel('phone').length === 0 ? (
-              <div className="empty-state">No phone interactions yet</div>
+              <div className='empty-state'>No phone interactions yet</div>
             ) : (
-              byChannel('phone').map(i => (
-                <div key={i.airtable_id} className="interaction-row">
-                  <div className="interaction-meta">
-                    <span className="interaction-date">{formatDate(i.created_at)}</span>
-                    <span className={`status-badge status-${i.status === 'resolved' ? 'available' : 'busy'}`}>
+              byChannel('phone').map((i) => (
+                <div key={i.airtable_id} className='interaction-row'>
+                  <div className='interaction-meta'>
+                    <span className='interaction-date'>
+                      {formatDate(i.created_at)}
+                    </span>
+                    <span
+                      className={`status-badge status-${i.status === 'resolved' ? 'available' : 'busy'}`}
+                    >
                       {i.status}
                     </span>
                   </div>
@@ -172,9 +207,9 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
         {activeTab === 'chat' && (
           <div>
             {byChannel('chat').length === 0 ? (
-              <div className="empty-state">No chat interactions yet</div>
+              <div className='empty-state'>No chat interactions yet</div>
             ) : (
-              byChannel('chat').map(i => (
+              byChannel('chat').map((i) => (
                 <InteractionRow
                   key={i.airtable_id}
                   interaction={i}
@@ -191,38 +226,60 @@ export default function CaseHistory({ baseUrl, caseId, sellerName, helpCategory,
   );
 }
 
-function InteractionRow({ interaction: i, expanded, onToggle, onResume, formatDate }) {
+function InteractionRow({
+  interaction: i,
+  expanded,
+  onToggle,
+  onResume,
+  formatDate,
+}) {
   return (
-    <div className="interaction-row">
-      <div className="interaction-meta" onClick={onToggle} style={{ cursor: 'pointer' }}>
+    <div className='interaction-row'>
+      <div
+        className='interaction-meta'
+        onClick={onToggle}
+        style={{ cursor: 'pointer' }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="interaction-date">{formatDate(i.created_at)}</span>
-          <span className={`status-badge status-${i.status === 'resolved' ? 'available' : 'busy'}`}>
+          <span className='interaction-date'>{formatDate(i.created_at)}</span>
+          <span
+            className={`status-badge status-${i.status === 'resolved' ? 'available' : 'busy'}`}
+          >
             {i.status}
           </span>
           {i.messages.length > 0 && (
-            <span style={{ fontSize: 12, color: '#9ca3af' }}>{i.messages.length} messages</span>
+            <span style={{ fontSize: 12, color: '#9ca3af' }}>
+              {i.messages.length} messages
+            </span>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {onResume && i.status === 'wip' && (
             <button
-              className="btn btn-ghost"
+              className='btn btn-ghost'
               style={{ padding: '3px 10px', fontSize: 12 }}
-              onClick={e => { e.stopPropagation(); onResume(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onResume();
+              }}
             >
               Open
             </button>
           )}
-          <span style={{ fontSize: 12, color: '#9ca3af' }}>{expanded ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>
+            {expanded ? '▲' : '▼'}
+          </span>
         </div>
       </div>
 
       {expanded && i.messages.length > 0 && (
-        <div className="transcript">
-          {i.messages.map(m => (
-            <div key={m.sid} className={`transcript-msg ${m.author === workerIdentity ? 'mine' : 'theirs'}`}>
-              <div className="transcript-author">{m.author}</div>
+        <div className='transcript'>
+          {i.messages.map((m) => (
+            <div
+              key={m.sid}
+              className={`transcript-msg ${m.author === workerIdentity ? 'mine' : 'theirs'}`}
+            >
+              <div className='transcript-author'>{m.author}</div>
               <div>{m.body}</div>
             </div>
           ))}
@@ -230,7 +287,9 @@ function InteractionRow({ interaction: i, expanded, onToggle, onResume, formatDa
       )}
 
       {expanded && i.messages.length === 0 && (
-        <div style={{ padding: '8px 0', fontSize: 13, color: '#9ca3af' }}>No messages recorded</div>
+        <div style={{ padding: '8px 0', fontSize: 13, color: '#9ca3af' }}>
+          No messages recorded
+        </div>
       )}
     </div>
   );

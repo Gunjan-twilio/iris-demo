@@ -1,7 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { Client as ConversationsClient } from '@twilio/conversations';
 
-export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationSid, identity, onEnd, workerDisplayName }) {
+export default function ChatWindow({
+  baseUrl,
+  flexClient,
+  taskSid,
+  conversationSid,
+  identity,
+  onEnd,
+  workerDisplayName,
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [conversationObj, setConversationObj] = useState(null);
@@ -14,25 +22,37 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
 
     async function bindMessagingPipeline() {
       // Both associate and seller use seller-token endpoint with their respective identity.
-      // Associate passes identity="associate1", seller passes their email.
-      const res = await fetch(`${baseUrl}/seller-token?identity=${encodeURIComponent(identity)}`);
+      // Associate passes identity matching their authenticated Flex worker, seller passes their email.
+      const res = await fetch(
+        `${baseUrl}/seller-token?identity=${encodeURIComponent(identity)}`,
+      );
       const data = await res.json();
       const client = await ConversationsClient.create(data.token);
       clientRef.current = client;
 
-      const activeConversation = await client.getConversationBySid(conversationSid);
+      const activeConversation =
+        await client.getConversationBySid(conversationSid);
       if (!active) return;
 
       setConversationObj(activeConversation);
 
       const paginator = await activeConversation.getMessages();
       if (!active) return;
-      setMessages(paginator.items.map(m => ({ sid: m.sid, author: m.author, body: m.body })));
+      setMessages(
+        paginator.items.map((m) => ({
+          sid: m.sid,
+          author: m.author,
+          body: m.body,
+        })),
+      );
 
       activeConversation.on('messageAdded', (message) => {
-        setMessages(prev => {
-          if (prev.find(m => m.sid === message.sid)) return prev;
-          return [...prev, { sid: message.sid, author: message.author, body: message.body }];
+        setMessages((prev) => {
+          if (prev.find((m) => m.sid === message.sid)) return prev;
+          return [
+            ...prev,
+            { sid: message.sid, author: message.author, body: message.body },
+          ];
         });
       });
     }
@@ -61,27 +81,55 @@ export default function ChatWindow({ baseUrl, flexClient, taskSid, conversationS
     }
   };
 
-  const handleKey = e => { if (e.key === 'Enter') sendMessage(); };
+  const handleKey = (e) => {
+    if (e.key === 'Enter') sendMessage();
+  };
 
   return (
-    <div className="chat-window">
+    <div className='chat-window'>
       {onEnd && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: 'white' }}>
-          <button className="btn btn-ghost" style={{ padding: '5px 12px', fontSize: 13 }} onClick={onEnd}>End Chat</button>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '8px 12px',
+            borderBottom: '1px solid #e5e7eb',
+            background: 'white',
+          }}
+        >
+          <button
+            className='btn btn-ghost'
+            style={{ padding: '5px 12px', fontSize: 13 }}
+            onClick={onEnd}
+          >
+            End Chat
+          </button>
         </div>
       )}
-      <div className="chat-messages">
-        {messages.map(m => (
-          <div key={m.sid} className={`message ${m.author === identity ? 'mine' : 'theirs'}`}>
-            <div className="message-author">{m.author === identity ? m.author : (workerDisplayName || m.author)}</div>
+      <div className='chat-messages'>
+        {messages.map((m) => (
+          <div
+            key={m.sid}
+            className={`message ${m.author === identity ? 'mine' : 'theirs'}`}
+          >
+            <div className='message-author'>
+              {m.author === identity ? m.author : workerDisplayName || m.author}
+            </div>
             {m.body}
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
-      <div className="chat-input-row">
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Type a message..." />
-        <button className="btn btn-primary" onClick={sendMessage}>Send</button>
+      <div className='chat-input-row'>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder='Type a message...'
+        />
+        <button className='btn btn-primary' onClick={sendMessage}>
+          Send
+        </button>
       </div>
     </div>
   );

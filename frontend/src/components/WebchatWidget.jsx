@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import ChatWindow from './ChatWindow.jsx';
 
-export default function WebchatWidget({ baseUrl, sellerName, sellerEmail, helpCategory, caseSummary, onEnd }) {
+export default function WebchatWidget({
+  baseUrl,
+  sellerName,
+  sellerEmail,
+  helpCategory,
+  caseSummary,
+  onEnd,
+}) {
   const [conversationSid, setConversationSid] = useState(null);
   const [error, setError] = useState(null);
 
+  // orchestration function to create a new webchat interaction and get the conversation SID
   useEffect(() => {
     fetch(`${baseUrl}/create-webchat-interaction`, {
       method: 'POST',
@@ -16,8 +24,8 @@ export default function WebchatWidget({ baseUrl, sellerName, sellerEmail, helpCa
         case_summary: caseSummary || '',
       }),
     })
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data.conversation_sid) setConversationSid(data.conversation_sid);
         else setError('Failed to start chat session');
       })
@@ -25,11 +33,17 @@ export default function WebchatWidget({ baseUrl, sellerName, sellerEmail, helpCa
   }, []);
 
   if (error) {
-    return <div style={{ padding: 16, fontSize: 13, color: '#dc2626' }}>{error}</div>;
+    return (
+      <div style={{ padding: 16, fontSize: 13, color: '#dc2626' }}>{error}</div>
+    );
   }
 
   if (!conversationSid) {
-    return <div style={{ padding: 16, fontSize: 13, color: '#6b7280' }}>Connecting to support...</div>;
+    return (
+      <div style={{ padding: 16, fontSize: 13, color: '#6b7280' }}>
+        Connecting to support...
+      </div>
+    );
   }
 
   return (
