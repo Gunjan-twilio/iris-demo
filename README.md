@@ -116,7 +116,6 @@ iris-walmart-demo/
 │   └── functions/
 │       ├── token.js              # Flex v4 SSO token for associate
 │       ├── seller-token.js       # Conversations token for seller
-│       ├── voice-token.js        # VoiceGrant token for browser Device (Call Now)
 │       ├── create-task.js        # creates TaskRouter task + Airtable record
 │       ├── accept-reservation.js # marks case wip in Airtable
 │       ├── reject-reservation.js
