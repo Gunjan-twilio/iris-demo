@@ -7,7 +7,6 @@ import {
   SetCurrentActivity,
 } from '@twilio/flex-sdk';
 import { StartOutboundCall, AddVoiceEventListener, VoiceClientEvent } from '@twilio/flex-sdk/actions/Voice';
-import { Device } from '@twilio/voice-sdk';
 import ChatWindow from './ChatWindow.jsx';
 import AssociateChatPanel from './AssociateChatPanel.jsx';
 import EmailThreadView from './EmailThreadView.jsx';
@@ -51,6 +50,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   // Phone call state per case
   const [activeCalls, setActiveCalls] = useState({}); // { case_id: VoiceCall }
   const [placeholderTasks, setPlaceholderTasks] = useState({}); // { case_id: taskSid }
+  const pendingCallNowCaseIdRef = useRef(null); // case_id waiting for an incoming VoiceCall from dequeue
   const isDialingRef = useRef(false);
   const openCasesRef = useRef([]);
 
@@ -148,6 +148,17 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       w.on('activityUpdated', u => setActivity(u.activity.name));
       w.on('reservationCreated', handleReservation);
 
+      // Register the incoming call listener once at init using the Flex token's built-in VoiceGrant.
+      // When a call_now dequeue fires, the incoming VoiceCall is paired with the waiting case_id ref.
+      flexClient.execute(
+        new AddVoiceEventListener(VoiceClientEvent.Incoming, (voiceCall) => {
+          const caseId = pendingCallNowCaseIdRef.current;
+          if (caseId) {
+            setActiveCalls(prev => ({ ...prev, [caseId]: voiceCall }));
+            pendingCallNowCaseIdRef.current = null;
+          }
+        })
+      ).catch(e => console.error('[voice] AddVoiceEventListener failed:', e.code, e.message));
     };
 
     init().catch(console.error);
@@ -227,36 +238,14 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         setPendingReservation(null);
         setPendingAttrs(null);
 
-        // TODO: Investigate whether the Flex SDK can initialize a Voice Device natively for Call Now,
-        // eliminating the need for a separate voice-token.js and manual Device registration.
-        // The current workaround: mint a VoiceGrant JWT from voice-token.js and register a
-        // @twilio/voice-sdk Device manually. The Flex SDK's AddVoiceEventListener should be able
-        // to do this natively if the JWE token contains a VoiceGrant — worth checking whether the
-        // Flex v4 token mint endpoint supports VoiceGrant inclusion, or whether calling
-        // AddVoiceEventListener without { voiceDevice } works when the worker has the 'agent' role.
-        let unsubscribeVoiceListener = null;
-        try {
-          await navigator.mediaDevices.getUserMedia({ audio: true });
-          const vtRes = await fetch(`${baseUrl}/voice-token?identity=${encodeURIComponent(workerIdentity)}`);
-          const { token: voiceJwt } = await vtRes.json();
-          const voiceDevice = new Device(voiceJwt, { logLevel: 'warn' });
-          // autoAcceptIncomingCalls only applies to the SDK's internal voice controller, not a
-          // custom Device — must accept the raw incoming call manually for audio to flow.
-          voiceDevice.on('incoming', call => call.accept());
-          await voiceDevice.register();
+        await navigator.mediaDevices.getUserMedia({ audio: true });
 
-          const { unsubscribe } = await flexClient.execute(
-            new AddVoiceEventListener(VoiceClientEvent.Incoming, (voiceCall) => {
-              setActiveCalls(prev => ({ ...prev, [attrs.case_id]: voiceCall }));
-              if (unsubscribeVoiceListener) unsubscribeVoiceListener();
-            }, { voiceDevice })
-          );
-          unsubscribeVoiceListener = unsubscribe;
-        } catch (e) {
-          console.error('[call_now] Voice Device setup failed:', e);
-        }
+        // Signal to the init-time listener which case_id to pair the incoming VoiceCall with
+        pendingCallNowCaseIdRef.current = attrs.case_id;
 
-        // dequeue bridges the enqueued seller call to the associate's registered Voice Device
+        // dequeue bridges the enqueued seller call to the associate's Voice Device.
+        // AddVoiceEventListener is registered once at init using the Flex token's built-in
+        // VoiceGrant — no separate voice-token.js or manual Device needed.
         await pendingReservation.dequeue({
           to: `client:${workerIdentity}`,
           from: import.meta.env.VITE_TWILIO_PHONE_NUMBER,

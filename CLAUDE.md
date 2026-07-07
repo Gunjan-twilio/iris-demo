@@ -25,7 +25,6 @@ Twilio Serverless Functions. Deploy from `functions/` directory.
 Key functions:
 - `token.js` — mints Flex token for associate via Flex v4 Users API
 - `seller-token.js` — mints standard AccessToken with `ChatGrant` for any identity (used by both seller and associate for Conversations SDK)
-- `voice-token.js` — mints standard AccessToken with `VoiceGrant` for browser Device registration (Call Now only)
 - `create-task.js` — creates TaskRouter task for all 4 channels
 - `initialize-accepted-chat.js` — called on associate accept for chat: creates Conversation, adds both participants, stamps `conversationSid` onto task attributes and Airtable
 - `accept-reservation.js` — updates Airtable case status to `wip`
@@ -93,8 +92,8 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 - Hold music plays from `call-now-wait` while seller waits
 - Associate accepts via `reservation.dequeue()` — NOT `AcceptTask` or `reservation.accept()`
   - `dequeue()` tells Twilio to dial `client:WORKER_IDENTITY` and bridge the enqueued call to it
-- Before calling `dequeue()`: `voice-token` endpoint mints a VoiceGrant JWT, a `@twilio/voice-sdk` `Device` is registered in the browser, and `voiceDevice.on('incoming', call => call.accept())` auto-answers the inbound leg
-- `AddVoiceEventListener` with `{ voiceDevice }` option captures the resulting `VoiceCall` for `PhoneControls`
+- `AddVoiceEventListener` is registered once at init (in `AssociatePanel` `init()`) using the Flex token's built-in VoiceGrant — no separate voice token needed
+- On accept: set `pendingCallNowCaseIdRef` to the case_id, then call `dequeue()`. The init-time listener fires when the VoiceCall arrives and pairs it with the case via the ref
 - Worker identity (`contact_uri` with `client:` stripped) is used as the `to` target for `dequeue()`
 
 ---
@@ -104,17 +103,13 @@ cd ../functions && twilio serverless:deploy --override-existing-project --profil
 - `flexClient` is a plain EventEmitter with only `['_events', '_eventsCount', '_maxListeners']` — no internal Conversations client exposed
 - `flexClient.voice` is always `undefined` — the Flex SDK does NOT expose a voice property on the client object
 - Voice Device is **lazy-initialized** only when `AddVoiceEventListener` or `StartOutboundCall` is executed via `flexClient.execute()`
-- The Flex JWE token does NOT contain a VoiceGrant — a separate AccessToken with `VoiceGrant` must be minted (`voice-token.js`) for browser Device registration
+- The Flex JWE token DOES contain a VoiceGrant — `AddVoiceEventListener` works without a custom Device or separate token
 - `GetConversationByTask` only works for Interactions API tasks — NOT for plain TaskRouter tasks
 - `AcceptTask` creates a voice conference via event bridge — throws error `48910` on chat/email tasks; use `reservation.accept()` for those
 - `AcceptTask` also fails on `<Enqueue>` voice tasks (Call Now) — use `reservation.dequeue()` instead
 - `reservationCreated` fires for ALL tasks including outbound voice tasks spawned by `StartOutboundCall`
 - Stale reservations on refresh: filter with `if (res.status !== 'pending') return`
-- `autoAcceptIncomingCalls: true` in `voiceOptions` only applies to the SDK's internal voice controller — has no effect on a custom `Device` passed to `AddVoiceEventListener`
-
-## Known Limitations / TODOs
-
-- **Voice Device initialization via Flex SDK:** Currently Call Now uses a workaround — a manually created `@twilio/voice-sdk` `Device` registered with a separate VoiceGrant token from `voice-token.js`. The Flex SDK should be capable of initializing a Voice Device natively via `AddVoiceEventListener` without needing a custom Device, but this requires the JWE token to contain a VoiceGrant. Investigation needed: whether the Flex v4 token mint endpoint can be configured to include a VoiceGrant, or whether `AddVoiceEventListener` without `{ voiceDevice }` option works when the worker has the `agent` role. See `AssociatePanel.jsx` call_now accept handler for the TODO comment.
+- `autoAcceptIncomingCalls: true` in `voiceOptions` defaults to true — the SDK auto-accepts incoming calls on the internal voice controller
 
 ---
 
