@@ -23,7 +23,7 @@ const STATUS = {
   wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
   resolved: { bg: '#E8F5E9', color: '#2E7D32', label: 'Resolved' },
 };
-const CHANNEL_ICON = { email: '✉', chat: '💬', phone: '📞', call_now: '📲' };
+const CHANNEL_ICON = { email: '✉', email_hybrid: '✉', chat: '💬', phone: '📞', call_now: '📲' };
 
 export default function AssociatePanel({ baseUrl, flexClient }) {
   const [worker, setWorker] = useState(null);
@@ -123,8 +123,9 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
 
       if (res.status !== 'pending') return;
 
-      // Explicitly target outbound voice tasks created by this CRM via StartOutboundCall
-      if (attrs.direction === 'outbound' || attrs.originating_case) {
+      // Explicitly target outbound voice tasks created by this CRM via StartOutboundCall.
+      // isCallback tasks (Call Now v2) also carry direction:outbound but MUST reach the accept UI.
+      if ((attrs.direction === 'outbound' || attrs.originating_case) && !attrs.isCallback) {
         console.log('[Silent Audio Monitor] Tracking outbound voice lifecycle for Task:', res.task.sid);
         res.on('wrapup', () => {
           console.log('[Auto-Wrapup Triggered] Completing outbound voice leg:', res.task.sid);
@@ -212,7 +213,19 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
   const setAgentActivity = async (name) => {
     if (!worker) return;
     const act = Array.from(worker.activities.values()).find(a => a.name === name);
-    if (act) await flexClient.execute(new SetCurrentActivity(act.sid));
+    if (!act) { setShowStatusMenu(false); return; }
+    // Moving to an unavailable activity while a reservation is pending would
+    // otherwise fail with "cannot update while pending reservations". Passing
+    // rejectPendingReservations=true atomically rejects them so the task
+    // returns to the queue and is reassigned to the next eligible worker.
+    const options = !act.available
+      ? { activityUpdateOptions: { rejectPendingReservations: true } }
+      : undefined;
+    try {
+      await flexClient.execute(new SetCurrentActivity(act.sid, options));
+    } catch (e) {
+      console.error('SetCurrentActivity failed', e);
+    }
     setShowStatusMenu(false);
   };
 
@@ -225,6 +238,51 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     const taskSid = currentTask.sid;
 
     try {
+      if (channel === 'call_now' && pendingAttrs?.isCallback === true) {
+        // Call Now v2 — callback-task pattern.
+        // Task already carries outbound_to; AcceptTask triggers the Flex conference bridge
+        // to dial the associate first, then dial outbound_to (seller).
+        const attrs = { ...pendingAttrs };
+
+        setOpenCases(prev => {
+          if (prev.find(c => c.case_id === attrs.case_id)) return prev;
+          return [...prev, { case_id: attrs.case_id, attrs, taskSid }];
+        });
+        setActiveTabId(attrs.case_id);
+        setPendingReservation(null);
+        setPendingAttrs(null);
+
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Pair the incoming associate leg (from the Flex conference bridge) with this case.
+        pendingCallNowCaseIdRef.current = attrs.case_id;
+
+        try {
+          await flexClient.execute(new AcceptTask(taskSid));
+        } catch (err) {
+          if (err.message?.includes('conference') || err.code === 48917) {
+            console.warn('[Bypassed Non-Critical Exception] Handled media race condition.');
+          } else {
+            throw err;
+          }
+        }
+
+        await fetch(`${baseUrl}/accept-reservation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task_sid: taskSid,
+            reservation_sid: pendingReservation.sid,
+            channel,
+            seller_phone: attrs?.seller_phone || '',
+            case_id: attrs?.case_id,
+            worker_name: worker?.attributes?.full_name || worker?.friendlyName || '',
+          }),
+        });
+
+        return;
+      }
+
       if (channel === 'call_now') {
         const attrs = { ...pendingAttrs };
         const workerIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate';
@@ -817,7 +875,7 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
             />
           )}
 
-          {channel === 'email' && taskSid && (commTab === 'all' || commTab === 'emails') && (
+          {(channel === 'email' || channel === 'email_hybrid') && taskSid && (commTab === 'all' || commTab === 'emails') && (
             <EmailThreadView
               baseUrl={baseUrl}
               flexClient={flexClient}
@@ -851,7 +909,7 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
             </div>
           )}
 
-          {commTab === 'all' && channel !== 'chat' && channel !== 'email' && channel !== 'phone' && (
+          {commTab === 'all' && channel !== 'chat' && channel !== 'email' && channel !== 'email_hybrid' && channel !== 'phone' && (
             <div className="iris-assoc-comm-empty">
               <div style={{fontSize:13,color:'#9ca3af'}}>No messages yet</div>
             </div>

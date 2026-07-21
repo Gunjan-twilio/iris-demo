@@ -87,6 +87,36 @@ exports.handler = async function (context, event, callback) {
         method: 'GET',
       });
 
+    } else if (channel === 'callback') {
+      // Callback-task pattern: create outbound TaskRouter task directly, no upfront dial.
+      // Associate accepts via AcceptTask → Flex conference dials associate, then dials seller.
+      if (!seller_phone) {
+        response.setStatusCode(400);
+        response.setBody({ error: 'seller_phone is required for callback channel' });
+        return callback(null, response);
+      }
+      await client.taskrouter.v1
+        .workspaces(context.WORKSPACE_SID)
+        .tasks.create({
+          workflowSid: context.WORKFLOW_SID,
+          taskChannel: 'voice',
+          routingTarget: context.WORKFLOW_SID,
+          attributes: JSON.stringify({
+            outbound_to: seller_phone,
+            from: context.TWILIO_PHONE_NUMBER,
+            direction: 'outbound',
+            isCallback: true,
+            name: `Callback: ${seller_phone}`,
+            skill: help_category,
+            channel: 'call_now',
+            seller_name,
+            seller_phone,
+            seller_email: seller_email || '',
+            case_summary: case_summary || '',
+            case_id,
+          }),
+        });
+
     } else {
       // Phone callback: placeholder task on default channel — keeps audio pipeline unblocked
       await client.taskrouter.v1
@@ -102,8 +132,9 @@ exports.handler = async function (context, event, callback) {
         });
     }
 
+    const airtableChannel = channel === 'callback' ? 'call_now' : channel;
     await base('Cases').create({
-      case_id, seller_name, help_category, channel, status: 'new',
+      case_id, seller_name, help_category, channel: airtableChannel, status: 'new',
       seller_phone: seller_phone || '', seller_email: seller_email || '',
       case_summary: case_summary || '', conversation_sid: conversation_sid || '',
       created_at: new Date().toISOString().split('T')[0],

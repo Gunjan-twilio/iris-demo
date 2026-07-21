@@ -6,6 +6,7 @@ import WebchatWidget from './WebchatWidget.jsx';
 const CHANNEL_LABELS = {
   chat: 'Chat',
   email: 'Email',
+  email_hybrid: 'Email',
   phone: 'Phone',
   call_now: 'Call Now',
 };
@@ -560,11 +561,13 @@ export default function SellerPanel({ baseUrl }) {
                 <option value='chat'>Chat</option>
                 <option value='phone'>Phone Callback</option>
                 <option value='call_now'>Call Now</option>
+                <option value='callback'>Call Back</option>
                 <option value='email'>Email</option>
               </select>
             </div>
             {(newCaseForm.channel === 'phone' ||
-              newCaseForm.channel === 'call_now') && (
+              newCaseForm.channel === 'call_now' ||
+              newCaseForm.channel === 'callback') && (
               <div className='form-group'>
                 <label>Your Phone Number</label>
                 <OutboundDialerModal
@@ -690,7 +693,7 @@ export default function SellerPanel({ baseUrl }) {
               compact
             />
           )}
-          {channel === 'email' && !isResolved && (
+          {(channel === 'email' || channel === 'email_hybrid') && !isResolved && (
             <div className='iris-status-msg'>
               An associate will respond to <strong>{seller.email}</strong>
             </div>
