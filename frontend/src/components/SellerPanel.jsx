@@ -7,6 +7,7 @@ const CHANNEL_LABELS = {
   chat: 'Chat',
   email: 'Email',
   email_hybrid: 'Email',
+  email_forwarded: 'Email (Walmart)',
   phone: 'Phone',
   call_now: 'Call Now',
 };
@@ -138,6 +139,8 @@ export default function SellerPanel({ baseUrl }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [webchatActive, setWebchatActive] = useState(false);
+  const [simulateReplyBody, setSimulateReplyBody] = useState('');
+  const [simulating, setSimulating] = useState(false);
   const [hideResolved, setHideResolved] = useState(
     () => localStorage.getItem('seller-hideResolved') !== 'false',
   );
@@ -244,6 +247,31 @@ export default function SellerPanel({ baseUrl }) {
       console.error(e);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSimulateReply = async () => {
+    if (!activeCase || !simulateReplyBody.trim() || simulating) return;
+    setSimulating(true);
+    try {
+      const res = await fetch(`${baseUrl}/simulate-forward-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          case_id: activeCase.case_id,
+          seller_email: seller.email,
+          seller_name: seller.name,
+          message: simulateReplyBody.trim(),
+          subject: activeCase.case_summary || activeCase.case_id,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) console.warn('[simulate-reply]', data);
+      setSimulateReplyBody('');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSimulating(false);
     }
   };
 
@@ -563,6 +591,7 @@ export default function SellerPanel({ baseUrl }) {
                 <option value='call_now'>Call Now</option>
                 <option value='callback'>Call Back</option>
                 <option value='email'>Email</option>
+                <option value='email_forwarded'>Email (Walmart)</option>
               </select>
             </div>
             {(newCaseForm.channel === 'phone' ||
@@ -697,6 +726,37 @@ export default function SellerPanel({ baseUrl }) {
             <div className='iris-status-msg'>
               An associate will respond to <strong>{seller.email}</strong>
             </div>
+          )}
+          {channel === 'email_forwarded' && !isResolved && (
+            <>
+              <div className='iris-status-msg'>
+                An associate will respond to <strong>{seller.email}</strong>{' '}
+                (from <strong>support@walmart.com</strong> via SendGrid).
+              </div>
+              <div style={{ marginTop: 12, padding: 12, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E5E7EB' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Simulate seller reply
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, lineHeight: 1.4 }}>
+                  Fakes an Exchange-forwarded email reply through the fly.io Inbound Parse receiver.
+                </div>
+                <textarea
+                  value={simulateReplyBody}
+                  onChange={(e) => setSimulateReplyBody(e.target.value)}
+                  placeholder='Type as if replying from Gmail...'
+                  rows={3}
+                  style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, padding: 6, borderRadius: 6, border: '1px solid #D1D5DB', resize: 'vertical' }}
+                />
+                <button
+                  className='iris-btn-primary'
+                  style={{ marginTop: 8, padding: '6px 14px' }}
+                  disabled={simulating || !simulateReplyBody.trim()}
+                  onClick={handleSimulateReply}
+                >
+                  {simulating ? 'Sending…' : 'Send reply'}
+                </button>
+              </div>
+            </>
           )}
           {channel === 'phone' && !isResolved && (
             <div className='iris-status-msg'>

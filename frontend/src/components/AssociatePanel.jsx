@@ -10,6 +10,7 @@ import { StartOutboundCall, AddVoiceEventListener, VoiceClientEvent } from '@twi
 import ChatWindow from './ChatWindow.jsx';
 import AssociateChatPanel from './AssociateChatPanel.jsx';
 import EmailThreadView from './EmailThreadView.jsx';
+import EmailForwardedThreadView from './EmailForwardedThreadView.jsx';
 import PhoneControls from './PhoneControls.jsx';
 
 function workerDisplayName(worker) {
@@ -23,7 +24,7 @@ const STATUS = {
   wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
   resolved: { bg: '#E8F5E9', color: '#2E7D32', label: 'Resolved' },
 };
-const CHANNEL_ICON = { email: '✉', email_hybrid: '✉', chat: '💬', phone: '📞', call_now: '📲' };
+const CHANNEL_ICON = { email: '✉', email_hybrid: '✉', email_forwarded: '✉', chat: '💬', phone: '📞', call_now: '📲' };
 
 export default function AssociatePanel({ baseUrl, flexClient }) {
   const [worker, setWorker] = useState(null);
@@ -889,6 +890,17 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
             />
           )}
 
+          {channel === 'email_forwarded' && conversationSid && (commTab === 'all' || commTab === 'emails') && (
+            <EmailForwardedThreadView
+              baseUrl={baseUrl}
+              conversationSid={conversationSid}
+              identity={workerIdentity}
+              caseId={attrs.case_id}
+              subject={attrs.subject || (attrs.case_summary ? `[${attrs.case_id}] ${attrs.case_summary}` : attrs.case_id)}
+              sellerEmail={attrs.seller_email || ''}
+            />
+          )}
+
           {channel === 'phone' && !voiceCall && (
             <div className="iris-assoc-comm-empty">
               <div style={{fontSize:32,marginBottom:8}}>📞</div>
@@ -909,7 +921,7 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
             </div>
           )}
 
-          {commTab === 'all' && channel !== 'chat' && channel !== 'email' && channel !== 'email_hybrid' && channel !== 'phone' && (
+          {commTab === 'all' && channel !== 'chat' && channel !== 'email' && channel !== 'email_hybrid' && channel !== 'email_forwarded' && channel !== 'phone' && (
             <div className="iris-assoc-comm-empty">
               <div style={{fontSize:13,color:'#9ca3af'}}>No messages yet</div>
             </div>

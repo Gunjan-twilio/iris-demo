@@ -68,6 +68,45 @@ exports.handler = async function (context, event, callback) {
       const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
       conversation_sid = taskAttrs.conversationSid || '';
 
+    } else if (channel === 'email_forwarded') {
+      // Walmart architecture (PDF pages 5–6): outbound send via SendGrid API as
+      // support@walmart.com; inbound seller replies land at SendGrid Inbound
+      // Parse (fly.io receiver) which relays to inbound-parse-relay.js and
+      // appends to the same Conversation.
+      const normalizedEmail = (seller_email || '').toLowerCase().trim();
+      const conversation = await client.conversations.v1
+        .services(context.CONVERSATIONS_SERVICE_SID)
+        .conversations.create({
+          friendlyName: `${case_id} — ${normalizedEmail}`,
+          attributes: JSON.stringify({
+            channelType: 'email_forwarded',
+            customerEmail: normalizedEmail,
+            caseId: case_id,
+            subject: emailSubject,
+          }),
+        });
+      conversation_sid = conversation.sid;
+
+      // Add seller as a chat participant so their portal SDK receives messages.
+      await client.conversations.v1
+        .services(context.CONVERSATIONS_SERVICE_SID)
+        .conversations(conversation_sid)
+        .participants.create({ identity: normalizedEmail });
+
+      await client.taskrouter.v1
+        .workspaces(context.WORKSPACE_SID)
+        .tasks.create({
+          workflowSid: context.WORKFLOW_SID,
+          taskChannel: 'default',
+          attributes: JSON.stringify({
+            skill: help_category, channel, seller_name,
+            seller_phone: seller_phone || '', seller_email: normalizedEmail,
+            case_summary: case_summary || '', case_id,
+            conversationSid: conversation_sid,
+            subject: emailSubject,
+          }),
+        });
+
     } else if (channel === 'call_now') {
       // Call Now: immediately dial seller → IVR creates the TaskRouter task after press-1
       if (!seller_phone) {

@@ -33,6 +33,9 @@ exports.handler = async function (context, event, callback) {
       // Conversation was already created in create-task — just use it
       // conversation_sid is already set from existing_conversation_sid
 
+    } else if (channel === 'email_forwarded') {
+      // Conversation was already created in create-task; nothing to do here.
+
     } else if (channel === 'phone') {
       // Call is placed client-side via StartOutboundCall after AcceptTask
     }
