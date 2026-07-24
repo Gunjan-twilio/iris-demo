@@ -48,6 +48,11 @@ exports.handler = async function (context, event, callback) {
     try { attrs = JSON.parse(conversation.attributes || '{}'); } catch (_) {}
     const emailMetadata = attrs.emailMetadata || {};
     const caseId = attrs.case_id || attrs.caseId || '';
+    // Twilio's per-conversation inbound routing address (e.g.,
+    // support+abc123@flex.gunjanigupta.com). Set Reply-To to this so the
+    // seller's reply lands in Flex's inbound pipeline and routes back to
+    // this same conversation.
+    const projectedAddress = conversation.bindings?.email?.projected_address || '';
 
     const toAddresses = (emailMetadata.to || '').split(',').map((s) => s.trim()).filter(Boolean);
     const ccAddresses = (emailMetadata.cc || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -95,6 +100,9 @@ exports.handler = async function (context, event, callback) {
           email: context.FROM_EMAIL,
           name: context.FROM_DISPLAY_NAME || 'Walmart Support',
         },
+        // Reply-To stays branded. Twilio Flex matches inbound replies back to
+        // this conversation via RFC In-Reply-To / References headers, which we
+        // spread from ChannelMetadata just above. The seller sees support@... .
         reply_to: { email: context.FROM_EMAIL },
         headers,
         content: [
@@ -110,6 +118,54 @@ exports.handler = async function (context, event, callback) {
       response.setStatusCode(502);
       response.setBody({ error: 'sendgrid_failed', status: sgRes.status, detail: errText, headers });
       return callback(null, response);
+    }
+
+    // ------------------------------------------------------------------------
+    // TEMPORARY WORKAROUND — DO NOT RELY ON FOR PRODUCTION
+    // Twilio Flex Email does not route inbound replies via In-Reply-To. See
+    // intercept-reply.js for the full note. We store our outbound Message-Id
+    // → source conversationSid mapping in Sync so the Studio Flow interceptor
+    // can look it up when the ghost reply-conversation arrives.
+    // TODO(permanent-fix): remove once Twilio adds native In-Reply-To routing.
+    // ------------------------------------------------------------------------
+    const outboundMessageIdRaw = headers['Message-Id'];
+    if (outboundMessageIdRaw) {
+      const key = String(outboundMessageIdRaw).trim().replace(/^</, '').replace(/>$/, '');
+      const syncServiceSid = context.SYNC_SERVICE_SID || 'default';
+      const SYNC_MAP_NAME = 'email_message_map';
+      try {
+        await client.sync.v1
+          .services(syncServiceSid)
+          .syncMaps(SYNC_MAP_NAME)
+          .syncMapItems.create({
+            key,
+            data: { conversationSid },
+            ttl: 60 * 60 * 24 * 30, // 30 days
+          });
+      } catch (err) {
+        if (err.code === 20404 || err.status === 404) {
+          // Sync Map doesn't exist yet — create it and retry once.
+          try {
+            await client.sync.v1
+              .services(syncServiceSid)
+              .syncMaps.create({ uniqueName: SYNC_MAP_NAME });
+            await client.sync.v1
+              .services(syncServiceSid)
+              .syncMaps(SYNC_MAP_NAME)
+              .syncMapItems.create({
+                key,
+                data: { conversationSid },
+                ttl: 60 * 60 * 24 * 30,
+              });
+          } catch (retryErr) {
+            console.warn('[send-hybrid-email] Sync map write failed after create', retryErr.message);
+          }
+        } else if (err.code === 54208 || err.status === 409) {
+          // Key already exists — idempotent; ignore.
+        } else {
+          console.warn('[send-hybrid-email] Sync map write failed', err.code, err.message);
+        }
+      }
     }
 
     response.setBody({ ok: true, to: toAddresses, cc: ccAddresses, subject, headers });
