@@ -889,6 +889,7 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
               subject={attrs.case_summary ? `[${attrs.case_id}] ${attrs.case_summary}` : attrs.case_id}
               sellerEmail={attrs.seller_email || ''}
               taskAttrs={attrs}
+              channel={channel}
             />
           )}
 

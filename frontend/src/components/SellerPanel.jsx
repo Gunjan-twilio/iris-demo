@@ -5,9 +5,9 @@ import WebchatWidget from './WebchatWidget.jsx';
 
 const CHANNEL_LABELS = {
   chat: 'Chat',
-  email: 'Email',
-  email_hybrid: 'Email',
-  email_forwarded: 'Email (Walmart)',
+  email: 'Email (OOTB)',
+  email_hybrid: 'Email (Hybrid)',
+  email_forwarded: 'Email (Custom)',
   phone: 'Phone',
   call_now: 'Call Now',
 };
@@ -590,8 +590,9 @@ export default function SellerPanel({ baseUrl }) {
                 <option value='phone'>Phone Callback</option>
                 <option value='call_now'>Call Now</option>
                 <option value='callback'>Call Back</option>
-                <option value='email'>Email</option>
-                <option value='email_forwarded'>Email (Walmart)</option>
+                <option value='email'>Email (OOTB)</option>
+                <option value='email_hybrid'>Email (Hybrid)</option>
+                <option value='email_forwarded'>Email (Custom)</option>
               </select>
             </div>
             {(newCaseForm.channel === 'phone' ||

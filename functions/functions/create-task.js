@@ -68,6 +68,55 @@ exports.handler = async function (context, event, callback) {
       const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
       conversation_sid = taskAttrs.conversationSid || '';
 
+    } else if (channel === 'email_hybrid') {
+      // Same shape as OOTB `email` (Flex Interactions API creates the task and
+      // Conversation with email participants and ChannelMetadata tracking) —
+      // but attributes.channel is `email_hybrid` so the frontend runs the
+      // participants-dance outbound flow via SendGrid instead of Twilio's
+      // built-in email dispatch. Inbound is still handled by Twilio's
+      // projected_address ingestion.
+      const interaction = await client.flexApi.v1.interaction.create({
+        channel: {
+          type: 'email',
+          initiated_by: 'api',
+          properties: { from: context.EMAIL_ADDRESS, from_name: 'Retail Support', subject: emailSubject },
+          participants: [{ address: seller_email, level: 'to', name: seller_name }],
+        },
+        routing: {
+          properties: {
+            workspace_sid: context.WORKSPACE_SID,
+            workflow_sid: context.WORKFLOW_SID,
+            task_channel_unique_name: 'email',
+            attributes: {
+              skill: help_category, channel, seller_name,
+              seller_phone: seller_phone || '', seller_email,
+              case_summary: case_summary || '', case_id,
+            },
+          },
+        },
+      });
+
+      const taskAttrs = JSON.parse(interaction.routing?.properties?.attributes || '{}');
+      conversation_sid = taskAttrs.conversationSid || '';
+
+      // Attach a scoped onMessageAdded webhook so persist-email-participants
+      // caches to/cc + ChannelMetadata as inbound and outbound messages arrive.
+      if (conversation_sid) {
+        try {
+          await client.conversations.v1
+            .services(context.CONVERSATIONS_SERVICE_SID)
+            .conversations(conversation_sid)
+            .webhooks.create({
+              target: 'webhook',
+              'configuration.filters': ['onMessageAdded'],
+              'configuration.method': 'POST',
+              'configuration.url': `https://${context.DOMAIN_NAME}/persist-email-participants`,
+            });
+        } catch (err) {
+          console.warn('[create-task email_hybrid] scoped webhook attach failed', err.message);
+        }
+      }
+
     } else if (channel === 'email_forwarded') {
       // Walmart architecture (PDF pages 5–6): outbound send via SendGrid API as
       // support@walmart.com; inbound seller replies land at SendGrid Inbound

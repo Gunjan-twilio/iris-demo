@@ -16,6 +16,7 @@ export default function EmailThreadView({
   sellerEmail,
   onEnd,
   taskAttrs,
+  channel,
 }) {
   const [messages, setMessages] = useState([]);
   const [conversation, setConversation] = useState(null);
@@ -167,20 +168,19 @@ export default function EmailThreadView({
     if (!hasHtml && !hasPlain) return;
 
     setSending(true);
+    const html = hasHtml
+      ? replyHtml.trim()
+      : `<p>${replyBody.trim().replace(/\n/g, '<br>')}</p>`;
+    const plain = html.replace(/<[^>]+>/g, '').trim();
+    const msgOptions = { htmlBody: html, plainTextBody: plain, subject };
+
     try {
-      const html = hasHtml
-        ? replyHtml.trim()
-        : `<p>${replyBody.trim().replace(/\n/g, '<br>')}</p>`;
-      const plain = html.replace(/<[^>]+>/g, '').trim();
-      const msgOptions = { htmlBody: html, plainTextBody: plain, subject };
-      console.log(
-        '[sendReply] conversation type:',
-        typeof conversation,
-        'keys:',
-        Object.keys(conversation || {}),
-      );
-      console.log('[sendReply] msgOptions:', msgOptions);
-      await conversation.sendMessage(msgOptions);
+      if (channel === 'email_hybrid') {
+        await sendHybridReply({ html, plain, msgOptions });
+      } else {
+        // OOTB `email` — let Twilio's built-in email dispatch handle it
+        await conversation.sendMessage(msgOptions);
+      }
       setReplyBody('');
       setReplyHtml('');
       setPreviewHtml('');
@@ -189,6 +189,59 @@ export default function EmailThreadView({
       console.error('Send error:', err);
     } finally {
       setSending(false);
+    }
+  };
+
+  // email_hybrid participants dance: strip to/cc so Twilio's built-in email
+  // dispatch can't fire → post the message via SDK (Twilio still tracks
+  // ChannelMetadata) → SendGrid actually sends → restore participants.
+  // readd runs in `finally` so a mid-flight failure never leaves the conversation
+  // in a broken (no-participants) state.
+  const sendHybridReply = async ({ html, plain, msgOptions }) => {
+    const targetConvSid = conversationSid || taskAttrs?.conversationSid || taskAttrs?.conversation_sid;
+
+    await fetch(`${baseUrl}/remove-email-participants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationSid: targetConvSid }),
+    });
+
+    let messageSid = '';
+    try {
+      // Post the message via SDK — the outbound conversation object exposes the
+      // Twilio Conversations helper for building an email-shaped message with
+      // subject + text/html bodies.
+      const messageIndex = await conversation.sendMessage(msgOptions);
+
+      // Retrieve the SDK-posted message SID for the ChannelMetadata lookup.
+      try {
+        const paginator = await conversation.getMessages?.(1, messageIndex, 'backwards');
+        const last = paginator?.items?.[0];
+        messageSid = last?.sid || '';
+      } catch (_) {}
+
+      const sgRes = await fetch(`${baseUrl}/send-hybrid-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationSid: targetConvSid,
+          messageSid,
+          subject,
+          htmlBody: html,
+          plainBody: plain,
+        }),
+      });
+      if (!sgRes.ok) {
+        const errBody = await sgRes.json().catch(() => ({}));
+        console.error('[sendHybridReply] SendGrid step failed', errBody);
+      }
+    } finally {
+      // Always re-add participants so the conversation isn't left broken.
+      await fetch(`${baseUrl}/readd-email-participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationSid: targetConvSid }),
+      }).catch((err) => console.error('[sendHybridReply] readd failed', err));
     }
   };
 
