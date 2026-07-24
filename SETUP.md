@@ -328,6 +328,8 @@ You need a domain you own (not Walmart's for the demo — use your own throughou
 
 ### 10b. `email_hybrid` — Twilio-managed inbound + custom outbound
 
+Pattern adapted from [`varun-maun-twilio/plugin-flex-email-custom-smtp`](https://github.com/varun-maun-twilio/plugin-flex-email-custom-smtp). That plugin is written for the Flex UI (`Actions.addListener("beforeSendMessage")`) and hands the payload off to an external SMTP server; our headless-SDK adaptation intercepts inside `EmailThreadView.sendReply` and dispatches via SendGrid Mail Send server-side instead. The four serverless functions (`persist-email-participants`, `remove-email-participants`, `readd-email-participants`, `send-hybrid-email`) mirror the plugin's four (`persist-email-participants`, `remove-current-participants`, `re-add-current-participants`, `send-smtp-request`).
+
 The Twilio Flex Email address for this channel anchors the projected_address that routes seller replies back into Twilio.
 
 1. **Authenticate a subdomain in Flex Email.** Console → Flex → Channel Management → Email → Authenticate domain. Use a dedicated subdomain (e.g., `parse.yourdomain.com`) — do NOT use the root, since the root's MX likely serves other mail (e.g., ImprovMX forwarding, see below). Add the CNAMEs + the MX record Twilio lists to your DNS, then verify.
