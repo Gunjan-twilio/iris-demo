@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import { simpleParser } from 'mailparser';
 
 const upload = multer();
 const app = express();
@@ -25,12 +26,28 @@ app.post('/inbound', upload.any(), async (req, res) => {
   }
 
   const body = req.body || {};
-  const rfcFrom = body.from || '';
-  const rfcTo = body.to || '';
-  const subject = body.subject || '';
-  const text = body.text || '';
-  const html = body.html || '';
-  const headers = body.headers || '';
+  let rfcFrom = body.from || '';
+  let rfcTo = body.to || '';
+  let subject = body.subject || '';
+  let text = body.text || '';
+  let html = body.html || '';
+  let headers = body.headers || '';
+
+  // If SendGrid Inbound Parse is in "raw MIME" mode, text/html/from arrive
+  // packed inside body.email as an RFC-822 message. Parse it out.
+  if (!text && !html && body.email) {
+    try {
+      const parsed = await simpleParser(body.email);
+      text = parsed.text || text;
+      html = parsed.html || html;
+      subject = subject || parsed.subject || '';
+      rfcFrom = rfcFrom || (parsed.from && parsed.from.text) || '';
+      rfcTo = rfcTo || (parsed.to && parsed.to.text) || '';
+      headers = headers || (parsed.headerLines || []).map((h) => h.line).join('\n');
+    } catch (err) {
+      console.warn('[inbound] mailparser failed', err.message);
+    }
+  }
 
   // Auto-reply / bulk filter
   if (/^Auto-Submitted:\s*auto/im.test(headers) || /^Precedence:\s*bulk/im.test(headers)) {
