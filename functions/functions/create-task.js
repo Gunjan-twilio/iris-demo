@@ -75,11 +75,15 @@ exports.handler = async function (context, event, callback) {
       // participants-dance outbound flow via SendGrid instead of Twilio's
       // built-in email dispatch. Inbound is still handled by Twilio's
       // projected_address ingestion.
+      // EMAIL_HYBRID_ADDRESS anchors the projected_address on our own domain
+      // (parse.gunjanigupta.com) so replies flow through the ImprovMX →
+      // Flex catchall path instead of the OOTB retail.dotorg.icu default.
+      const hybridFromAddress = context.EMAIL_HYBRID_ADDRESS || context.EMAIL_ADDRESS;
       const interaction = await client.flexApi.v1.interaction.create({
         channel: {
           type: 'email',
           initiated_by: 'api',
-          properties: { from: context.EMAIL_ADDRESS, from_name: 'Retail Support', subject: emailSubject },
+          properties: { from: hybridFromAddress, from_name: 'Walmart Support', subject: emailSubject },
           participants: [{ address: seller_email, level: 'to', name: seller_name }],
         },
         routing: {

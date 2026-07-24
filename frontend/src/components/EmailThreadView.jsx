@@ -208,14 +208,23 @@ export default function EmailThreadView({
 
     let messageSid = '';
     try {
-      // Post the message via SDK — the outbound conversation object exposes the
-      // Twilio Conversations helper for building an email-shaped message with
-      // subject + text/html bodies.
-      const messageIndex = await conversation.sendMessage(msgOptions);
+      // Post the message via the Twilio Conversations SDK builder pattern.
+      // The Flex-SDK wrapper's `.sendMessage({htmlBody,plainTextBody,subject})`
+      // path attempts Twilio's built-in email dispatch and fails when
+      // participants have been stripped (our dance). `prepareMessage().build().send()`
+      // records the message + ChannelMetadata without dispatching.
+      const rawConv = conversation.conversation || conversation;
+      const messageIndex = await rawConv
+        .prepareMessage()
+        .setSubject(subject)
+        .setEmailBody('text/html', { contentType: 'text/html', media: html })
+        .setEmailBody('text/plain', { contentType: 'text/plain', media: plain })
+        .build()
+        .send();
 
       // Retrieve the SDK-posted message SID for the ChannelMetadata lookup.
       try {
-        const paginator = await conversation.getMessages?.(1, messageIndex, 'backwards');
+        const paginator = await rawConv.getMessages?.(1, messageIndex, 'backwards');
         const last = paginator?.items?.[0];
         messageSid = last?.sid || '';
       } catch (_) {}
