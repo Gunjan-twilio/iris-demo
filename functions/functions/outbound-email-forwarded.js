@@ -1,11 +1,10 @@
 const twilio = require('twilio');
 
-// Wired as the post-event onMessageAdded webhook on the Flex Conversation
-// Service. Fires for every conversation on that service (chat included), so
-// self-filter on channelType === 'email_forwarded' and Source === 'SDK'
-// (associate typed in EmailForwardedThreadView). REST-created seller replies
-// arrive via inbound-parse-relay with xTwilioWebhookEnabled=false — they do
-// not reach this handler.
+// Attached as a per-conversation scoped onMessageAdded webhook at
+// conversation-create time (create-task.js email_forwarded branch). Only fires
+// for email_forwarded conversations, so no service-wide filtering is needed —
+// but still gate on Source === 'SDK' to ignore the REST-created seller replies
+// coming in via inbound-parse-relay.
 exports.handler = async function (context, event, callback) {
   const response = new Twilio.Response();
   response.appendHeader('Content-Type', 'application/json');
@@ -33,6 +32,9 @@ exports.handler = async function (context, event, callback) {
     try { attrs = JSON.parse(conversation.attributes || '{}'); } catch (_) {}
 
     if (attrs.channelType !== 'email_forwarded') {
+      // Belt-and-suspenders: shouldn't happen with the scoped-webhook wiring,
+      // but log if it does so we notice a misrouted attachment.
+      console.warn('[outbound-email-forwarded] scoped webhook fired on non-email_forwarded conversation', { conversationSid, channelType: attrs.channelType });
       response.setBody({ skipped: 'not_email_forwarded', channelType: attrs.channelType || null });
       return callback(null, response);
     }

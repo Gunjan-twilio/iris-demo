@@ -13,7 +13,7 @@ exports.handler = async function (context, event, callback) {
     return callback(null, response);
   }
 
-  const { task_sid, reservation_sid, channel, seller_phone, seller_email, case_id, conversation_sid: existing_conversation_sid, worker_name } = event;
+  const { task_sid, reservation_sid, channel, seller_phone, seller_email, case_id, conversation_sid: existing_conversation_sid, worker_name, associate_identity } = event;
 
   if (!task_sid || !reservation_sid) {
     response.setStatusCode(400);
@@ -34,7 +34,20 @@ exports.handler = async function (context, event, callback) {
       // conversation_sid is already set from existing_conversation_sid
 
     } else if (channel === 'email_forwarded') {
-      // Conversation was already created in create-task; nothing to do here.
+      // Conversation was created in create-task with only the seller as a
+      // participant. Add the associate now so their ConversationsClient token
+      // (issued for `associate_identity`) can fetch and send messages.
+      if (existing_conversation_sid && associate_identity) {
+        try {
+          await client.conversations.v1
+            .services(context.CONVERSATIONS_SERVICE_SID)
+            .conversations(existing_conversation_sid)
+            .participants.create({ identity: associate_identity });
+        } catch (err) {
+          // 50433 = participant already exists — safe to ignore on retry
+          if (err.code !== 50433) throw err;
+        }
+      }
 
     } else if (channel === 'phone') {
       // Call is placed client-side via StartOutboundCall after AcceptTask

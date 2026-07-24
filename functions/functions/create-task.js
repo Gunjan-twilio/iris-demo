@@ -93,6 +93,19 @@ exports.handler = async function (context, event, callback) {
         .conversations(conversation_sid)
         .participants.create({ identity: normalizedEmail });
 
+      // Scoped onMessageAdded webhook: fires ONLY for this conversation, so
+      // outbound-email-forwarded stays isolated from chat / OOTB email traffic.
+      // Pattern from leroychan/twilio-flex-conversations-adapters.
+      await client.conversations.v1
+        .services(context.CONVERSATIONS_SERVICE_SID)
+        .conversations(conversation_sid)
+        .webhooks.create({
+          target: 'webhook',
+          'configuration.filters': ['onMessageAdded'],
+          'configuration.method': 'POST',
+          'configuration.url': `https://${context.DOMAIN_NAME}/outbound-email-forwarded`,
+        });
+
       await client.taskrouter.v1
         .workspaces(context.WORKSPACE_SID)
         .tasks.create({

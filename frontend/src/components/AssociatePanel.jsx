@@ -337,6 +337,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         }
       }
 
+      const workerIdentityForAccept = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate';
       await fetch(`${baseUrl}/accept-reservation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -349,6 +350,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
           case_id: pendingAttrs?.case_id,
           conversation_sid: pendingAttrs?.conversationSid || pendingAttrs?.conversation_sid || '',
           worker_name: worker?.attributes?.full_name || worker?.friendlyName || '',
+          associate_identity: workerIdentityForAccept,
         }),
       });
 
