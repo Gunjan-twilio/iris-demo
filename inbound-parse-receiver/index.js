@@ -32,6 +32,9 @@ app.post('/inbound', upload.any(), async (req, res) => {
   let text = body.text || '';
   let html = body.html || '';
   let headers = body.headers || '';
+  let messageId = '';
+  let inReplyTo = '';
+  let referencesArr = [];
 
   // If SendGrid Inbound Parse is in "raw MIME" mode, text/html/from arrive
   // packed inside body.email as an RFC-822 message. Parse it out.
@@ -44,8 +47,23 @@ app.post('/inbound', upload.any(), async (req, res) => {
       rfcFrom = rfcFrom || (parsed.from && parsed.from.text) || '';
       rfcTo = rfcTo || (parsed.to && parsed.to.text) || '';
       headers = headers || (parsed.headerLines || []).map((h) => h.line).join('\n');
+      messageId = parsed.messageId || '';
+      inReplyTo = parsed.inReplyTo || '';
+      referencesArr = Array.isArray(parsed.references)
+        ? parsed.references
+        : (parsed.references ? [parsed.references] : []);
     } catch (err) {
       console.warn('[inbound] mailparser failed', err.message);
+    }
+  }
+
+  // In SendGrid's parsed-fields mode, threading lives inside body.headers as raw RFC lines.
+  if (!messageId || !inReplyTo || !referencesArr.length) {
+    const hdrMap = parseHeaderBlock(headers);
+    messageId = messageId || hdrMap['message-id'] || '';
+    inReplyTo = inReplyTo || hdrMap['in-reply-to'] || '';
+    if (!referencesArr.length && hdrMap['references']) {
+      referencesArr = hdrMap['references'].split(/\s+/).filter(Boolean);
     }
   }
 
@@ -56,11 +74,20 @@ app.post('/inbound', upload.any(), async (req, res) => {
   }
 
   const parsed = parseForwardedBody(text, html);
-  const sellerEmail = parsed.originalFrom || extractEmail(rfcFrom);
+  const rfcFromEmail = extractEmail(rfcFrom);
+  // Prefer RFC From (ImprovMX/Cloudflare preserve it via SRS; direct Gmail →
+  // Parse also keeps it intact). Only fall back to a body-extracted From when
+  // the RFC value is missing OR the wrapping forwarder rewrote it to an
+  // infrastructure address on our own sending domain.
+  const outboundDomain = ((process.env.FROM_EMAIL || '').split('@')[1] || '').toLowerCase();
+  const rfcFromIsOurInfra = outboundDomain && rfcFromEmail.endsWith('@' + outboundDomain);
+  const sellerEmail = (!rfcFromEmail || rfcFromIsOurInfra)
+    ? (parsed.originalFrom || rfcFromEmail)
+    : rfcFromEmail;
   const caseId = extractCaseId(subject) || extractCaseId(text);
   const messageBody = parsed.cleanBody || text;
 
-  console.log('[inbound] parsed', { sellerEmail, caseId, rfcFrom, rfcTo, subject });
+  console.log('[inbound] parsed', { sellerEmail, caseId, rfcFrom, rfcTo, subject, messageId, inReplyTo, referencesArr });
 
   if (!sellerEmail || !caseId) {
     console.warn('[inbound] missing sellerEmail or caseId — dropping');
@@ -79,6 +106,9 @@ app.post('/inbound', upload.any(), async (req, res) => {
         seller_email: sellerEmail,
         subject,
         message: messageBody,
+        message_id: messageId,
+        in_reply_to: inReplyTo,
+        references: referencesArr,
       }),
     });
     const relayText = await relayRes.text();
@@ -138,6 +168,25 @@ function parseForwardedBody(text, html) {
   const cleanBody = source.slice(0, cutIdx).trim();
 
   return { originalFrom, cleanBody };
+}
+
+// Parse an RFC 822 header block ("Header-Name: value\n...") into a lowercased-key map.
+function parseHeaderBlock(block) {
+  const map = {};
+  if (!block) return map;
+  const lines = String(block).split(/\r?\n/);
+  let currentKey = '';
+  for (const line of lines) {
+    if (/^\s/.test(line) && currentKey) {
+      map[currentKey] += ' ' + line.trim();
+      continue;
+    }
+    const m = line.match(/^([A-Za-z0-9-]+):\s*(.*)$/);
+    if (!m) continue;
+    currentKey = m[1].toLowerCase();
+    map[currentKey] = m[2].trim();
+  }
+  return map;
 }
 
 function stripHtml(html) {

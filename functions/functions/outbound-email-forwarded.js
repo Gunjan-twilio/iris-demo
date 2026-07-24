@@ -44,11 +44,30 @@ exports.handler = async function (context, event, callback) {
     const originalSubject = (attrs.subject || `Case ${caseId}`).replace(/^\[[^\]]+\]\s*/, '');
     const subject = caseId ? `[${caseId}] ${originalSubject}` : originalSubject;
     const bodyText = event.Body || '';
+    const messageSid = event.MessageSid || '';
 
     if (!to || !bodyText.trim()) {
       response.setBody({ skipped: 'missing_to_or_body' });
       return callback(null, response);
     }
+
+    // RFC 5322 threading. Message-ID for THIS outbound; reference the last
+    // known message in the thread (either our prior outbound or a seller
+    // reply captured via inbound-parse-relay).
+    const domain = (context.FROM_EMAIL || 'walmart.com').split('@')[1] || 'walmart.com';
+    const newMessageId = `<case-${caseId}.${messageSid || Date.now()}@${domain}>`;
+    const priorLastId = attrs.threading?.lastMessageId || '';
+    const priorRefs = Array.isArray(attrs.threading?.references) ? attrs.threading.references : [];
+    const referencesHeader = priorRefs.length ? priorRefs.join(' ') : '';
+
+    const headers = {
+      'Message-Id': newMessageId,
+      'X-Iris-Case-ID': caseId,
+      'X-Iris-Conversation-SID': conversationSid,
+      'X-Iris-Message-SID': messageSid,
+    };
+    if (priorLastId) headers['In-Reply-To'] = priorLastId;
+    if (referencesHeader) headers['References'] = referencesHeader;
 
     const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -63,6 +82,7 @@ exports.handler = async function (context, event, callback) {
           name: context.FROM_DISPLAY_NAME || 'Walmart Support',
         },
         reply_to: { email: context.FROM_EMAIL },
+        headers,
         content: [
           { type: 'text/plain', value: bodyText },
           { type: 'text/html', value: `<div style="font-family:sans-serif;font-size:14px;color:#1a1a2e;white-space:pre-wrap">${escapeHtml(bodyText)}</div>` },
@@ -78,7 +98,19 @@ exports.handler = async function (context, event, callback) {
       return callback(null, response);
     }
 
-    response.setBody({ ok: true, to, subject });
+    // Persist the new Message-ID onto the conversation so the NEXT outbound
+    // can reference this one (whether the seller replies in between or not).
+    const nextRefs = [...priorRefs, newMessageId];
+    const updatedAttrs = {
+      ...attrs,
+      threading: { lastMessageId: newMessageId, references: nextRefs },
+    };
+    await client.conversations.v1
+      .services(context.CONVERSATIONS_SERVICE_SID)
+      .conversations(conversationSid)
+      .update({ attributes: JSON.stringify(updatedAttrs) });
+
+    response.setBody({ ok: true, to, subject, messageId: newMessageId });
     return callback(null, response);
   } catch (err) {
     console.error('[outbound-email-forwarded]', err);
