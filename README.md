@@ -13,7 +13,9 @@ This demonstrates how to build a fully custom contact center UI using Twilio's r
 | **Chat** | Real-time webchat via Flex Interactions API + Twilio Conversations SDK |
 | **Phone Callback** | Seller requests a callback — associate accepts, outbound call bridges both parties |
 | **Call Now** | Seller requests an immediate call — IVR connects them to hold queue, associate accepts and is bridged in |
-| **Email** | Full email threading via Flex Interactions API — replies from inbox or portal both append to the same thread |
+| **Email (OOTB)** | `channel: email`. Pure Flex Interactions API — Twilio owns inbound MX, outbound dispatch, and threading. From/Reply-To is a Twilio-managed address on your Flex email domain. Simplest path when the customer accepts Twilio-hosted email infra end-to-end. |
+| **Email (Hybrid)** | `channel: email_hybrid`. Flex Interactions API for inbound (Twilio-managed projected_address ingestion) + custom SendGrid outbound intercept for branded `From: support@yourdomain`. Preserves Twilio-managed threading and reporting while letting the seller see a branded sending address. Reply routing uses a TEMP In-Reply-To interceptor via Studio Flow + Twilio Sync (see `intercept-reply.js` and CLAUDE.md's Email Hybrid section — remove once Twilio ships native In-Reply-To routing). |
+| **Email (Custom)** | `channel: email_forwarded`. Fully custom email plane. SendGrid Inbound Parse (on `parse.yourdomain.com`) → external Express receiver (see `inbound-parse-receiver/`) → relay to a Twilio Function → append to a plain Conversation. Outbound sends via SendGrid API. Chosen when the customer cannot cede any DNS/MX to Twilio (e.g. Walmart's `walmart.com` root MX constraint per the July 2026 solution PDF pages 5–6). |
 
 **Associate CRM features:**
 - SSO login via Flex v4 Auth
@@ -49,6 +51,8 @@ Seller Portal ──► create-task ──► TaskRouter ─┤                 
 ```
 
 **Chat** takes a separate path: `SellerPanel` calls `create-webchat-interaction` directly (Flex Interactions API via Studio Flow), bypassing `create-task`. The seller enters the chat room immediately; the associate side receives a reservation via the normal `reservationCreated` event.
+
+**Email is three side-by-side channels** (`email`, `email_hybrid`, `email_forwarded`) so you can demo the trade-offs of "Twilio owns email" vs "we own outbound only" vs "we own the entire email plane." See CLAUDE.md's Channel Architecture section for the participants dance, the projected_address anchor, and the TEMP In-Reply-To interceptor pattern the hybrid variant needs (until Twilio adds native routing).
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of every component.
 
