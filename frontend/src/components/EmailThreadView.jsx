@@ -76,17 +76,48 @@ export default function EmailThreadView({
 
     const init = async () => {
       try {
+        // 1. Load aggregated case thread from backend — walks TaskRouter for
+        // every task with this case_id and merges messages from all associated
+        // conversations. Handles the "close-on-send / new ghost per reply"
+        // architecture where a single case spans N conversations.
+        const caseIdForFetch = taskAttrs?.case_id || caseId;
+        let items = [];
+        if (caseIdForFetch) {
+          try {
+            const threadRes = await fetch(
+              `${baseUrl}/get-case-thread?case_id=${encodeURIComponent(caseIdForFetch)}`,
+            );
+            if (threadRes.ok) {
+              const thread = await threadRes.json();
+              items = (thread.messages || []).map((m) => ({
+                sid: m.sid,
+                author: m.author,
+                body: m.body || '',
+                subject: m.subject,
+                htmlContent: undefined,
+                dateCreated: m.dateCreated,
+                conversationSid: m.conversationSid,
+              }));
+            }
+          } catch (err) {
+            console.warn('get-case-thread fetch failed', err);
+          }
+        }
+
+        // 2. Get the CURRENT conversation via SDK for live message updates.
         const convo = await flexClient.execute(
           new GetConversationByTask(taskSid),
         );
         if (!active) return;
-
         setConversation(convo);
 
-        // Load message history
-        const paginator = await convo.getMessages();
-        const items = await Promise.all(
-          paginator.items.map(async (m) => {
+        // 3. Enrich messages on the current conversation with HTML bodies
+        // (SDK-only capability). Older-conversation messages stay body-only.
+        const currentSid = convo?.conversation?.sid;
+        const currentMessagesById = {};
+        try {
+          const paginator = await convo.getMessages();
+          for (const m of paginator.items) {
             let htmlContent;
             try {
               const url = await m
@@ -97,16 +128,29 @@ export default function EmailThreadView({
                 htmlContent = await res.text();
               }
             } catch (_) {}
-            return {
-              sid: m.sid,
-              author: m.author,
-              body: m.body,
-              subject: m.subject,
-              htmlContent,
-              dateCreated: m.dateCreated,
-            };
-          }),
-        );
+            currentMessagesById[m.sid] = { htmlContent, body: m.body, subject: m.subject };
+          }
+        } catch (_) {}
+
+        // If the backend timeline is empty (e.g., new case, no case_id lookup),
+        // fall back to the current conversation only.
+        if (items.length === 0 && currentSid) {
+          const paginator = await convo.getMessages();
+          items = paginator.items.map((m) => ({
+            sid: m.sid,
+            author: m.author,
+            body: m.body || '',
+            subject: m.subject,
+            htmlContent: currentMessagesById[m.sid]?.htmlContent,
+            dateCreated: m.dateCreated,
+            conversationSid: currentSid,
+          }));
+        } else {
+          items = items.map((it) => {
+            const enrichment = currentMessagesById[it.sid];
+            return enrichment ? { ...it, htmlContent: enrichment.htmlContent } : it;
+          });
+        }
 
         setMessages(items);
         // Collapse all except the last
@@ -116,7 +160,8 @@ export default function EmailThreadView({
         });
         setCollapsed(initial);
 
-        // Listen for new messages via the inner Twilio Conversations object
+        // 4. Listen for new messages on the CURRENT conversation only —
+        // older ghosts are closed and won't emit anything.
         const listener = async (msg) => {
           let htmlContent;
           try {
@@ -137,6 +182,7 @@ export default function EmailThreadView({
               subject: msg.subject,
               htmlContent,
               dateCreated: msg.dateCreated,
+              conversationSid: currentSid,
             },
           ]);
         };
@@ -234,6 +280,7 @@ export default function EmailThreadView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationSid: targetConvSid,
+          caseId: taskAttrs?.case_id || '',
           messageSid,
           subject,
           htmlBody: html,
@@ -244,6 +291,7 @@ export default function EmailThreadView({
         const errBody = await sgRes.json().catch(() => ({}));
         console.error('[sendHybridReply] SendGrid step failed', errBody);
       }
+      // close the task TODO
     } finally {
       // Always re-add participants so the conversation isn't left broken.
       await fetch(`${baseUrl}/readd-email-participants`, {

@@ -47,12 +47,9 @@ exports.handler = async function (context, event, callback) {
     let attrs = {};
     try { attrs = JSON.parse(conversation.attributes || '{}'); } catch (_) {}
     const emailMetadata = attrs.emailMetadata || {};
-    const caseId = attrs.case_id || attrs.caseId || '';
-    // Twilio's per-conversation inbound routing address (e.g.,
-    // support+abc123@flex.gunjanigupta.com). Set Reply-To to this so the
-    // seller's reply lands in Flex's inbound pipeline and routes back to
-    // this same conversation.
-    const projectedAddress = conversation.bindings?.email?.projected_address || '';
+    // Prefer caseId from the frontend (which has the task attributes);
+    // fall back to whatever's on the conversation.
+    const caseId = event.caseId || event.CaseId || attrs.case_id || attrs.caseId || '';
 
     const toAddresses = (emailMetadata.to || '').split(',').map((s) => s.trim()).filter(Boolean);
     const ccAddresses = (emailMetadata.cc || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -69,12 +66,22 @@ exports.handler = async function (context, event, callback) {
       'X-Iris-Message-SID': messageSid,
     };
 
-    // ChannelMetadata for email conversations exposes RFC 5322 threading fields.
-    // Field names vary in Twilio's response — try both nested and flat shapes.
-    const cm = messageChannelMetadata?.data || messageChannelMetadata || {};
-    if (cm.message_id || cm.MessageId || cm['Message-Id']) {
-      headers['Message-Id'] = cm.message_id || cm.MessageId || cm['Message-Id'];
+    // Case-ID-embedded Message-Id. The conversation gets closed on send, so
+    // seller replies always land on a NEW conversation. route-inbound-reply
+    // parses the case ID out of the reply's In-Reply-To header (from
+    // ChannelMetadata) to link the new task back to the original case.
+    // Domain is derived from FROM_EMAIL so it always matches our sending domain.
+    const fromDomain = (context.FROM_EMAIL || '').split('@')[1] || 'twilio.com';
+    if (caseId) {
+      headers['Message-Id'] = `<case-${caseId}-${messageSid}@${fromDomain}>`;
+    } else {
+      headers['Message-Id'] = `<${context.CONVERSATIONS_SERVICE_SID}.${conversationSid}.${messageSid}@twilio.com>`;
     }
+
+    // In-Reply-To / References still come from ChannelMetadata for follow-up
+    // agent messages within the same open conversation (multiple inbounds
+    // pre-close). Chains the RFC thread for the seller's mail client.
+    const cm = messageChannelMetadata?.data || messageChannelMetadata || {};
     if (cm.in_reply_to || cm.InReplyTo || cm['In-Reply-To']) {
       headers['In-Reply-To'] = cm.in_reply_to || cm.InReplyTo || cm['In-Reply-To'];
     }
@@ -118,54 +125,6 @@ exports.handler = async function (context, event, callback) {
       response.setStatusCode(502);
       response.setBody({ error: 'sendgrid_failed', status: sgRes.status, detail: errText, headers });
       return callback(null, response);
-    }
-
-    // ------------------------------------------------------------------------
-    // TEMPORARY WORKAROUND — DO NOT RELY ON FOR PRODUCTION
-    // Twilio Flex Email does not route inbound replies via In-Reply-To. See
-    // intercept-reply.js for the full note. We store our outbound Message-Id
-    // → source conversationSid mapping in Sync so the Studio Flow interceptor
-    // can look it up when the ghost reply-conversation arrives.
-    // TODO(permanent-fix): remove once Twilio adds native In-Reply-To routing.
-    // ------------------------------------------------------------------------
-    const outboundMessageIdRaw = headers['Message-Id'];
-    if (outboundMessageIdRaw) {
-      const key = String(outboundMessageIdRaw).trim().replace(/^</, '').replace(/>$/, '');
-      const syncServiceSid = context.SYNC_SERVICE_SID || 'default';
-      const SYNC_MAP_NAME = 'email_message_map';
-      try {
-        await client.sync.v1
-          .services(syncServiceSid)
-          .syncMaps(SYNC_MAP_NAME)
-          .syncMapItems.create({
-            key,
-            data: { conversationSid },
-            ttl: 60 * 60 * 24 * 30, // 30 days
-          });
-      } catch (err) {
-        if (err.code === 20404 || err.status === 404) {
-          // Sync Map doesn't exist yet — create it and retry once.
-          try {
-            await client.sync.v1
-              .services(syncServiceSid)
-              .syncMaps.create({ uniqueName: SYNC_MAP_NAME });
-            await client.sync.v1
-              .services(syncServiceSid)
-              .syncMaps(SYNC_MAP_NAME)
-              .syncMapItems.create({
-                key,
-                data: { conversationSid },
-                ttl: 60 * 60 * 24 * 30,
-              });
-          } catch (retryErr) {
-            console.warn('[send-hybrid-email] Sync map write failed after create', retryErr.message);
-          }
-        } else if (err.code === 54208 || err.status === 409) {
-          // Key already exists — idempotent; ignore.
-        } else {
-          console.warn('[send-hybrid-email] Sync map write failed', err.code, err.message);
-        }
-      }
     }
 
     response.setBody({ ok: true, to: toAddresses, cc: ccAddresses, subject, headers });
