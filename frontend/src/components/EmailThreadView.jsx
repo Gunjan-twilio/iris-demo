@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GetConversationByTask } from '@twilio/flex-sdk';
+import { GetConversationByTask, EndTask } from '@twilio/flex-sdk';
 
 // here you may want threading based on all email conversations connected to a Case,
 // perhaps using Case ID in the email subject as another thread identifier.
@@ -291,7 +291,8 @@ export default function EmailThreadView({
         const errBody = await sgRes.json().catch(() => ({}));
         console.error('[sendHybridReply] SendGrid step failed', errBody);
       }
-      // close the task TODO
+      
+      
     } finally {
       // Always re-add participants so the conversation isn't left broken.
       await fetch(`${baseUrl}/readd-email-participants`, {
@@ -300,6 +301,10 @@ export default function EmailThreadView({
         body: JSON.stringify({ conversationSid: targetConvSid }),
       }).catch((err) => console.error('[sendHybridReply] readd failed', err));
     }
+    
+    //We are closing the task here so that because the new replies will use a new conversation. And we do not want to have this task, conversation in a hanging state
+    const endTask = new EndTask(taskSid);
+    const { task, reservation } = await flexClient.execute(endTask);
   };
 
   const clearTemplate = () => {
