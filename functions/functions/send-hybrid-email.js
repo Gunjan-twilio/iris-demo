@@ -33,16 +33,32 @@ exports.handler = async function (context, event, callback) {
   try {
     const client = twilio(context.ACCOUNT_SID, context.AUTH_TOKEN);
 
-    const [conversation, messageChannelMetadata] = await Promise.all([
+    // Fetch conversation attrs + recent messages in parallel. We need the
+    // LAST INBOUND message's ChannelMetadata (its RFC Message-Id + References)
+    // so our outbound can chain In-Reply-To / References properly — Gmail
+    // forgives a missing chain via subject-matching, Yahoo does not.
+    const [conversation, recentMessages] = await Promise.all([
       client.conversations.v1
         .services(context.CONVERSATIONS_SERVICE_SID)
         .conversations(conversationSid)
         .fetch(),
-      fetchChannelMetadata(context, conversationSid, messageSid).catch((err) => {
-        console.warn('[send-hybrid-email] ChannelMetadata fetch failed', err.message);
-        return null;
-      }),
+      client.conversations.v1
+        .services(context.CONVERSATIONS_SERVICE_SID)
+        .conversations(conversationSid)
+        .messages.list({ order: 'desc', limit: 20 }),
     ]);
+
+    // Inbound messages are authored by an email address; outbound (associate)
+    // are authored by an auth0 identity. Pick the most recent inbound.
+    const lastInbound = recentMessages.find(
+      (m) => typeof m.author === 'string' && m.author.includes('@')
+    );
+    const inboundChannelMetadata = lastInbound
+      ? await fetchChannelMetadata(context, conversationSid, lastInbound.sid).catch((err) => {
+          console.warn('[send-hybrid-email] inbound ChannelMetadata fetch failed', err.message);
+          return null;
+        })
+      : null;
 
     let attrs = {};
     try { attrs = JSON.parse(conversation.attributes || '{}'); } catch (_) {}
@@ -78,16 +94,18 @@ exports.handler = async function (context, event, callback) {
       headers['Message-Id'] = `<${context.CONVERSATIONS_SERVICE_SID}.${conversationSid}.${messageSid}@twilio.com>`;
     }
 
-    // In-Reply-To / References still come from ChannelMetadata for follow-up
-    // agent messages within the same open conversation (multiple inbounds
-    // pre-close). Chains the RFC thread for the seller's mail client.
-    const cm = messageChannelMetadata?.data || messageChannelMetadata || {};
-    if (cm.in_reply_to || cm.InReplyTo || cm['In-Reply-To']) {
-      headers['In-Reply-To'] = cm.in_reply_to || cm.InReplyTo || cm['In-Reply-To'];
-    }
-    if (cm.references || cm.References) {
-      const refs = cm.references || cm.References;
-      headers['References'] = Array.isArray(refs) ? refs.join(' ') : refs;
+    // Chain the RFC thread: our In-Reply-To points at the seller's most recent
+    // inbound Message-Id, References accumulates the prior chain + that ID.
+    // Without this, Yahoo treats each outbound as an unrelated email.
+    const cm = inboundChannelMetadata?.data || inboundChannelMetadata || {};
+    const inboundMessageId = cm.message_id || cm.MessageId || cm['Message-Id'];
+    if (inboundMessageId) {
+      headers['In-Reply-To'] = inboundMessageId;
+      const priorRefs = cm.references || cm.References || '';
+      const refsList = Array.isArray(priorRefs)
+        ? priorRefs
+        : (priorRefs ? String(priorRefs).split(/\s+/).filter(Boolean) : []);
+      headers['References'] = [...refsList, inboundMessageId].join(' ');
     }
 
     const html = htmlBody || `<p>${escapeHtml(plainBody).replace(/\n/g, '<br>')}</p>`;
