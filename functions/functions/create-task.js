@@ -238,12 +238,19 @@ exports.handler = async function (context, event, callback) {
     }
 
     const airtableChannel = channel === 'callback' ? 'call_now' : channel;
-    await base('Cases').create({
+    const airtableFields = {
       case_id, seller_name, help_category, channel: airtableChannel, status: 'new',
       seller_phone: seller_phone || '', seller_email: seller_email || '',
       case_summary: case_summary || '', conversation_sid: conversation_sid || '',
       created_at: new Date().toISOString().split('T')[0],
-    });
+    };
+    // email_hybrid replies spawn ghost conversations. conversation_sids is the
+    // persistent index (case_id → [SIDs]) read by get-case-thread — replaces the
+    // rate-limited TaskRouter evaluateTaskAttributes walk.
+    if (channel === 'email_hybrid' && conversation_sid) {
+      airtableFields.conversation_sids = conversation_sid;
+    }
+    await base('Cases').create(airtableFields);
 
     response.setBody({ case_id, conversation_sid: conversation_sid || '' });
     return callback(null, response);

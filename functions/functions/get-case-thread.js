@@ -1,11 +1,12 @@
 const twilio = require('twilio');
+const Airtable = require('airtable');
 
 // Aggregates the full email thread for a case_id across all conversations.
-// Each seller reply after close-on-send lands on a fresh ghost conversation
-// (Twilio's expected inbound behavior for closed convs). This endpoint walks
-// TaskRouter for every task tagged with the case_id, collects the unique
-// conversation SIDs from their attributes, fetches messages from each, and
-// returns a merged, chronologically-sorted timeline.
+// Each seller reply after close-on-send lands on a fresh ghost conversation.
+// The persistent index lives on the Airtable Cases row (conversation_sids —
+// comma-separated). create-task.js writes the initial SID; route-inbound-reply.js
+// appends ghost SIDs as replies arrive. This endpoint reads that list and pulls
+// messages from each Conversation directly — no TaskRouter walk.
 //
 // GET /get-case-thread?case_id=CASE-XXX
 exports.handler = async function (context, event, callback) {
@@ -31,30 +32,26 @@ exports.handler = async function (context, event, callback) {
     const client = twilio(context.ACCOUNT_SID, context.AUTH_TOKEN);
     const SVC = context.CONVERSATIONS_SERVICE_SID;
 
-    // 1. Every task ever tagged with this case_id.
-    const tasks = await client.taskrouter.v1
-      .workspaces(context.WORKSPACE_SID)
-      .tasks.list({
-        evaluateTaskAttributes: `case_id == "${caseId}"`,
-        limit: 50,
-      });
+    const base = new Airtable({ apiKey: context.AIRTABLE_API_KEY }).base(context.AIRTABLE_BASE_ID);
+    const records = await base('Cases')
+      .select({ filterByFormula: `{case_id} = '${caseId}'`, maxRecords: 1 })
+      .firstPage();
 
-    // 2. Collect unique conversation SIDs — from task attrs and any
-    // originalConversationSid the reply-routing function stamped on.
-    const convSids = new Set();
-    for (const t of tasks) {
-      let a = {};
-      try { a = JSON.parse(t.attributes || '{}'); } catch (_) {}
-      if (a.conversationSid) convSids.add(a.conversationSid);
-      if (a.originalConversationSid) convSids.add(a.originalConversationSid);
-      if (a.sourceConversationSid) convSids.add(a.sourceConversationSid);
+    if (records.length === 0) {
+      response.setBody({ case_id: caseId, conversationCount: 0, conversations: [], messageCount: 0, messages: [] });
+      return callback(null, response);
     }
 
-    // 3. Pull metadata + messages from each conversation in parallel.
+    const r = records[0].fields;
+    // Backfill: pre-index rows only had conversation_sid; treat it as the seed.
+    const indexed = String(r.conversation_sids || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const primary = String(r.conversation_sid || '').trim();
+    const convSids = [...new Set([...(primary ? [primary] : []), ...indexed])];
+
     const conversations = [];
     const allMessages = [];
     await Promise.all(
-      [...convSids].map(async (sid) => {
+      convSids.map(async (sid) => {
         try {
           const conv = await client.conversations.v1
             .services(SVC)
@@ -72,22 +69,28 @@ exports.handler = async function (context, event, callback) {
             .conversations(sid)
             .messages.list({ limit: 100 });
 
-          for (const m of messages) {
+          // email_hybrid outbound uses prepareMessage().setEmailBody() which
+          // stores content as media attachments — the message's `body` is
+          // empty. Fetch those media contents so the frontend can render.
+          await Promise.all(messages.map(async (m) => {
             let mediaHtmlSid = null;
             let mediaPlainSid = null;
             const media = m.media || [];
             for (const mm of media) {
-              if (mm.content_type === 'text/html' || mm.contentType === 'text/html') {
-                mediaHtmlSid = mm.sid;
-              } else if (mm.content_type === 'text/plain' || mm.contentType === 'text/plain') {
-                mediaPlainSid = mm.sid;
-              }
+              const ct = mm.content_type || mm.contentType;
+              if (ct === 'text/html') mediaHtmlSid = mm.sid;
+              else if (ct === 'text/plain') mediaPlainSid = mm.sid;
             }
+            let htmlContent = null;
+            let plainContent = null;
+            if (mediaHtmlSid) htmlContent = await fetchMediaContent(context, mediaHtmlSid).catch(() => null);
+            if (mediaPlainSid) plainContent = await fetchMediaContent(context, mediaPlainSid).catch(() => null);
             allMessages.push({
               sid: m.sid,
               conversationSid: sid,
               author: m.author,
-              body: m.body || '',
+              body: m.body || plainContent || '',
+              htmlContent,
               dateCreated: m.dateCreated,
               index: m.index,
               mediaHtmlSid,
@@ -96,14 +99,13 @@ exports.handler = async function (context, event, callback) {
                 try { return JSON.parse(m.attributes).subject; } catch (_) { return null; }
               })()) || null,
             });
-          }
+          }));
         } catch (err) {
           console.warn(`[get-case-thread] fetch failed for ${sid}:`, err.message);
         }
       })
     );
 
-    // 4. Sort chronologically.
     allMessages.sort((a, b) => new Date(a.dateCreated) - new Date(b.dateCreated));
     conversations.sort((a, b) => new Date(a.dateCreated) - new Date(b.dateCreated));
 
@@ -122,3 +124,19 @@ exports.handler = async function (context, event, callback) {
     return callback(null, response);
   }
 };
+
+async function fetchMediaContent(context, mediaSid) {
+  const auth = Buffer.from(`${context.ACCOUNT_SID}:${context.AUTH_TOKEN}`).toString('base64');
+  const metaRes = await fetch(
+    `https://mcs.us1.twilio.com/v1/Services/${context.CONVERSATIONS_SERVICE_SID}/Media/${mediaSid}`,
+    { headers: { Authorization: `Basic ${auth}` } }
+  );
+  if (!metaRes.ok) throw new Error(`MCS meta ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const tempUrl = meta.links?.content_direct_temporary || meta.links?.content_temporary;
+  if (!tempUrl) throw new Error('no temp url in MCS response');
+  const contentRes = await fetch(tempUrl);
+  if (!contentRes.ok) throw new Error(`MCS content ${contentRes.status}`);
+  return await contentRes.text();
+}
+

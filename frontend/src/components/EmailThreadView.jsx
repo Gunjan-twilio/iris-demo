@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { GetConversationByTask, EndTask } from '@twilio/flex-sdk';
+import { GetConversationByTask, EndTask, CompleteTask } from '@twilio/flex-sdk';
 
 // here you may want threading based on all email conversations connected to a Case,
 // perhaps using Case ID in the email subject as another thread identifier.
@@ -302,9 +302,16 @@ export default function EmailThreadView({
       }).catch((err) => console.error('[sendHybridReply] readd failed', err));
     }
     
-    //We are closing the task here so that because the new replies will use a new conversation. And we do not want to have this task, conversation in a hanging state
-    const endTask = new EndTask(taskSid);
-    const { task, reservation } = await flexClient.execute(endTask);
+    // Fully close the task so the associate's email channel capacity is freed —
+    // seller replies always spawn a new conversation/task, so there's nothing to
+    // wrap up. EndTask moves reservation assigned → wrapping; CompleteTask then
+    // moves it wrapping → completed. Wrapping alone still counts against capacity.
+    try {
+      await flexClient.execute(new EndTask(taskSid));
+      await flexClient.execute(new CompleteTask(taskSid));
+    } catch (err) {
+      console.error('[sendHybridReply] task completion failed', err);
+    }
   };
 
   const clearTemplate = () => {
