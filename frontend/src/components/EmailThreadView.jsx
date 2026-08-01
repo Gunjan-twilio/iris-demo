@@ -94,7 +94,7 @@ export default function EmailThreadView({
                 author: m.author,
                 body: m.body || '',
                 subject: m.subject,
-                htmlContent: undefined,
+                htmlContent: m.htmlContent || undefined,
                 dateCreated: m.dateCreated,
                 conversationSid: m.conversationSid,
               }));
@@ -105,32 +105,39 @@ export default function EmailThreadView({
         }
 
         // 2. Get the CURRENT conversation via SDK for live message updates.
-        const convo = await flexClient.execute(
-          new GetConversationByTask(taskSid),
-        );
+        // GetConversationByTask can fail on completed tasks — don't let that
+        // abort the whole init; the backend timeline is already usable.
+        let convo = null;
+        try {
+          convo = await flexClient.execute(new GetConversationByTask(taskSid));
+        } catch (err) {
+          console.warn('GetConversationByTask failed (task likely completed)', err?.message);
+        }
         if (!active) return;
-        setConversation(convo);
+        if (convo) setConversation(convo);
 
         // 3. Enrich messages on the current conversation with HTML bodies
         // (SDK-only capability). Older-conversation messages stay body-only.
         const currentSid = convo?.conversation?.sid;
         const currentMessagesById = {};
-        try {
-          const paginator = await convo.getMessages();
-          for (const m of paginator.items) {
-            let htmlContent;
-            try {
-              const url = await m
-                .getEmailBody?.('text/html')
-                ?.getContentTemporaryUrl?.();
-              if (url) {
-                const res = await fetch(url);
-                htmlContent = await res.text();
-              }
-            } catch (_) {}
-            currentMessagesById[m.sid] = { htmlContent, body: m.body, subject: m.subject };
-          }
-        } catch (_) {}
+        if (convo) {
+          try {
+            const paginator = await convo.getMessages();
+            for (const m of paginator.items) {
+              let htmlContent;
+              try {
+                const url = await m
+                  .getEmailBody?.('text/html')
+                  ?.getContentTemporaryUrl?.();
+                if (url) {
+                  const res = await fetch(url);
+                  htmlContent = await res.text();
+                }
+              } catch (_) {}
+              currentMessagesById[m.sid] = { htmlContent, body: m.body, subject: m.subject };
+            }
+          } catch (_) {}
+        }
 
         // If the backend timeline is empty (e.g., new case, no case_id lookup),
         // fall back to the current conversation only.
@@ -148,7 +155,9 @@ export default function EmailThreadView({
         } else {
           items = items.map((it) => {
             const enrichment = currentMessagesById[it.sid];
-            return enrichment ? { ...it, htmlContent: enrichment.htmlContent } : it;
+            // Prefer SDK enrichment when present (fresh live content); keep
+            // backend-fetched htmlContent otherwise.
+            return enrichment?.htmlContent ? { ...it, htmlContent: enrichment.htmlContent } : it;
           });
         }
 
@@ -159,6 +168,8 @@ export default function EmailThreadView({
           initial[m.sid] = true;
         });
         setCollapsed(initial);
+
+        if (!convo) return;
 
         // 4. Listen for new messages on the CURRENT conversation only —
         // older ghosts are closed and won't emit anything.
