@@ -67,8 +67,27 @@ exports.handler = async function (context, event, callback) {
     // fall back to whatever's on the conversation.
     const caseId = event.caseId || event.CaseId || attrs.case_id || attrs.caseId || '';
 
-    const toAddresses = (emailMetadata.to || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const ccAddresses = (emailMetadata.cc || '').split(',').map((s) => s.trim()).filter(Boolean);
+    // Filter our own FROM out of To/Cc (would echo to us + trip SendGrid's
+    // "duplicate address" 400) and dedupe. Twilio auto-adds participants for
+    // addresses in the inbound RFC headers, sometimes with duplicates, so
+    // emailMetadata.to can contain our own support@... one or more times.
+    const ownAddress = String(context.FROM_EMAIL || '').toLowerCase();
+    const cleanList = (raw) => {
+      const seen = new Set();
+      const out = [];
+      for (const s of String(raw || '').split(',')) {
+        const addr = s.trim();
+        if (!addr) continue;
+        const key = addr.toLowerCase();
+        if (key === ownAddress) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(addr);
+      }
+      return out;
+    };
+    const toAddresses = cleanList(emailMetadata.to);
+    const ccAddresses = cleanList(emailMetadata.cc);
 
     if (toAddresses.length === 0) {
       response.setStatusCode(409);
