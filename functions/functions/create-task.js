@@ -48,7 +48,7 @@ exports.handler = async function (context, event, callback) {
         channel: {
           type: 'email',
           initiated_by: 'api',
-          properties: { from: context.EMAIL_ADDRESS, from_name: 'Retail Support', subject: emailSubject },
+          properties: { from: context.FROM_EMAIL, from_name: context.FROM_DISPLAY_NAME, subject: emailSubject },
           participants: [{ address: seller_email, level: 'to', name: seller_name }],
         },
         routing: {
