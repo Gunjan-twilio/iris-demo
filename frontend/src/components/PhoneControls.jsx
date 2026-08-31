@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // see also components here - https://github.com/twilio-samples/flex-sdk-demo/tree/main/src/components
 export default function PhoneControls({
@@ -8,12 +8,21 @@ export default function PhoneControls({
   onEnd,
 }) {
   const [muted, setMuted] = useState(false);
+  const endedByAssociateRef = useRef(false);
 
   useEffect(() => {
     if (!call) return;
     const voiceSDKCall = call.call;
     if (!voiceSDKCall) return;
-    const handleDisconnect = () => onEnd();
+    const handleDisconnect = (reason) => {
+      if (endedByAssociateRef.current) {
+        console.log('[Call Ended] Ended by associate via End Call button', { sellerName, sellerPhone });
+      } else {
+        console.log('[Call Ended] Ended NOT by associate (remote hangup/network/cancel)', { sellerName, sellerPhone, reason });
+      }
+      endedByAssociateRef.current = false;
+      onEnd();
+    };
     voiceSDKCall.on('disconnect', handleDisconnect);
     voiceSDKCall.on('cancel', handleDisconnect);
     return () => {
@@ -32,6 +41,8 @@ export default function PhoneControls({
   };
 
   const endCall = async () => {
+    endedByAssociateRef.current = true;
+    console.log('[Call Ended] Associate clicked End Call button', { sellerName, sellerPhone });
     try {
       await call.disconnect();
     } catch (err) {

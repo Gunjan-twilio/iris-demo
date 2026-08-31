@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Seller-Initiated End Chat — Technical Overview</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1f2328;
+    --muted: #57606a;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --link: #0969da;
+  }
+  body {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.6;
+  }
+  h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: 0.4em; }
+  h2 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; margin-top: 2em; }
+  h3 { font-size: 1.15em; margin-top: 1.6em; color: var(--muted); }
+  code {
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  a { color: var(--link); }
+  ul { padding-left: 1.4em; }
+  li { margin: 0.3em 0; }
+  .mermaid {
+    background: var(--code-bg);
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>Seller-Initiated End Chat — Technical Overview</h1>
+
+<h2>Scope</h2>
+<p>Covers what happens when a seller clicks <strong>End Chat</strong> in a live webchat case, in both timing scenarios:</p>
+<ul>
+  <li><strong>Case A</strong> — seller ends chat while an associate already has the task <code>assigned</code>.</li>
+  <li><strong>Case B</strong> (race condition) — seller ends chat while the task is still <code>pending</code>/<code>reserved</code>, i.e. before any associate has clicked Accept.</li>
+</ul>
+
+<h2>Overview</h2>
+<p>The seller's chat UI renders an <strong>End Chat</strong> button. Clicking it POSTs to the <code>end-chat</code> Twilio Function/backend, which marks the Twilio Conversation <code>closed</code> and — if a task is already <code>assigned</code> to an associate — moves that task to <code>wrapping</code> via a direct TaskRouter REST update (the same <code>assigned → wrapping</code> transition Flex's <code>EndTask</code> action performs, just invoked server-side instead of from a live Flex client).</p>
+<p>The gap this closes: TaskRouter reservations can exist (<code>assignment-callback.js</code> writes <code>task_sid</code>/<code>reservation_sid</code> to backend as soon as a reservation is <em>created</em> for a worker) before that worker has clicked <strong>Accept</strong>. If the seller ends the chat during that window, the task is not yet <code>assigned</code>, so <code>end-chat.js</code>'s <code>assignmentStatus: 'wrapping'</code> update would fail (TaskRouter only allows <code>assigned → wrapping</code>, not <code>pending/reserved → wrapping</code>) — and that failure is caught and swallowed. Without a second check, an associate could still accept into a conversation the seller already left, with no signal.</p>
+<p>The fix: <code>accept-reservation.js</code> — which runs synchronously as part of the associate's <strong>Accept</strong> action, after <code>AcceptTask</code> has already put the task into <code>assigned</code> — re-checks the conversation's live <code>state</code> for chat tasks that already carry a <code>conversation_sid</code> (true for webchat, since the Studio Flow stamps it on task attributes before the task reaches any worker). If the conversation is no longer <code>active</code>, it immediately updates the task to <code>wrapping</code>, <code>reason: 'seller ended chat before assignment'</code>.</p>
+<p>On both frontend sides, the actual "chat ended" signal is the Conversations SDK <code>updated</code> event with <code>updateReasons</code> including <code>"state"</code>. Both <code>ChatWindow.jsx</code> (seller + associate-post-accept view) and <code>AssociateChatPanel.jsx</code> (associate's pre-<code>conversationSid</code> fallback view) subscribe to it, seed a <code>chatEnded</code> flag from <code>conversation.state.current</code> on load (covers the "already ended when I opened this" case), and disable messaging with a "This chat has ended." banner.</p>
+
+<p>Code sample to get conversation state change event on Associate's UI</p>
+<pre><code>conv.conversation.on('updated', ({ updateReasons }) => {
+  if (updateReasons.includes('state')) {
+    setChatEnded(conv.conversation.state?.current !== 'active');
+  }
+});</code></pre>
+
+<h2>Sequence Diagram</h2>
+
+<h3>Case A — seller ends chat after the task is already assigned</h3>
+<pre class="mermaid">
+sequenceDiagram
+    participant Seller as Seller (ChatWindow.jsx)
+    participant EndChatFn as end-chat.js (backend)
+    participant Conversations as Twilio Conversations
+    participant TaskRouter as TaskRouter
+    participant DB
+    participant Associate as Associate (ChatWindow.jsx)
+
+    Seller->>EndChatFn: POST /end-chat { conversationSid }
+    EndChatFn->>Conversations: conversations(sid).update({ state: 'inactive' })
+    EndChatFn->>DB: select Cases where conversation_sid = sid
+    DB-->>EndChatFn: record { task_sid }
+    EndChatFn->>TaskRouter: tasks(task_sid).update({ assignmentStatus: 'wrapping', reason: 'seller ended chat' })
+    alt task already wrapping/completed
+        TaskRouter-->>EndChatFn: error (caught, ignored)
+    end
+    EndChatFn-->>Seller: { success: true }
+    Seller->>Seller: onEnd() (navigate back to case list)
+
+    Conversations->>Associate: conversation "updated" event (updateReasons includes "state")
+    Associate->>Associate: setChatEnded(true) -> show "This chat has ended.", disable input
+    Associate->>Associate: clicks Resolve / Save & Close (existing closeCase flow, unchanged)
+</pre>
+
+<h3>Case B — seller ends chat before the associate accepts (race condition)</h3>
+<pre class="mermaid">
+sequenceDiagram
+    participant Seller as Seller (ChatWindow.jsx)
+    participant EndChatFn as end-chat.js (backend)
+    participant Conversations as Twilio Conversations
+    participant TaskRouter as TaskRouter
+    participant DB
+    participant Associate as Associate (AssociatePanel.jsx)
+    participant AcceptFn as accept-reservation.js (backend)
+
+    Note over TaskRouter: Task reservation already created for<br/>associate (assignment-callback.js), but<br/>not yet accepted -> assignmentStatus is pending/reserved
+
+    Seller->>EndChatFn: POST /end-chat { conversationSid }
+    EndChatFn->>Conversations: conversations(sid).update({ state: 'inactive' })
+    EndChatFn->>DB: select Cases where conversation_sid = sid
+    DB-->>EndChatFn: record { task_sid }
+    EndChatFn->>TaskRouter: tasks(task_sid).update({ assignmentStatus: 'wrapping', ... })
+    TaskRouter-->>EndChatFn: error (task not "assigned" yet) — caught, ignored
+    EndChatFn-->>Seller: { success: true }
+
+    Associate->>Associate: clicks Accept
+    Associate->>TaskRouter: flexClient.execute(AcceptTask(taskSid))  (assignmentStatus -> assigned)
+    Associate->>AcceptFn: POST /accept-reservation { task_sid, conversation_sid, channel: 'chat', ... }
+    AcceptFn->>Conversations: conversations(conversation_sid).fetch()
+    Conversations-->>AcceptFn: state = 'closed'
+    alt state !== 'active'
+        AcceptFn->>TaskRouter: tasks(task_sid).update({ assignmentStatus: 'wrapping', reason: 'seller ended chat before assignment' })
+    end
+    AcceptFn->>DB: update Cases record (status: 'wip', conversation_sid, task_sid, ...)
+    AcceptFn-->>Associate: { success: true, conversation_sid }
+
+    Associate->>Associate: opens case tab, renders ChatWindow with known conversationSid
+    Associate->>Associate: ChatWindow seeds chatEnded from conversation.state on mount -> shows "This chat has ended.", disables input
+</pre>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+</body>
+</html>

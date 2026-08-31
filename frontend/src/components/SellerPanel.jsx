@@ -224,6 +224,12 @@ export default function SellerPanel({ baseUrl }) {
         }),
       });
       const data = await res.json();
+      if (!res.ok || !data.case_id) {
+        console.error('create-task failed', data);
+        setFormError(data.error || 'Failed to create case. Please try again.');
+        return;
+      }
+      setFormError(null);
       const newCase = {
         case_id: data.case_id,
         status: 'new',

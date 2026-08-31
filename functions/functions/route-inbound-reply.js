@@ -86,6 +86,7 @@ exports.handler = async function (context, event, callback) {
       help_category: r.help_category || '',
       case_summary: r.case_summary || '',
       originalConversationSid: r.conversation_sid || '',
+      previousAgent: r.previous_agent || '', //from db
     });
     return callback(null, response);
   } catch (err) {

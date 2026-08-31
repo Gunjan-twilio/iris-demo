@@ -6,6 +6,7 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
   const [input, setInput] = useState('');
   const [conversation, setConversation] = useState(null);
   const [error, setError] = useState(null);
+  const [chatEnded, setChatEnded] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
         if (!active) return;
 
         setConversation(conv);
+        setChatEnded(conv.conversation.state?.current !== 'active');
 
         const paginator = await conv.getMessages();
         if (!active) return;
@@ -44,6 +46,20 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
         );
 
         conv.conversation.on('messageAdded', messageAddedListener);
+        conv.conversation.on('participantLeft', (participant) => {
+          console.log('participantLeft event received', participant);
+        });
+        conv.conversation.on('participantJoined', (participant) => {
+          console.log('participantJoined event received', participant);
+        });
+        conv.conversation.on('conversationRemoved', (conv) => {
+          console.log('conversationRemoved event received', conv);
+        });
+        conv.conversation.on('updated', ({ updateReasons }) => {
+          if (updateReasons.includes('state')) {
+            setChatEnded(conv.conversation.state?.current !== 'active');
+          }
+        });
       } catch (err) {
         console.error('AssociateChatPanel init error:', err);
         if (active) setError('Unable to load conversation');
@@ -65,7 +81,7 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || !conversation) return;
+    if (!input.trim() || !conversation || chatEnded) return;
     const body = input.trim();
     setInput('');
     try {
@@ -86,6 +102,11 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
       {onEnd && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', borderBottom: '1px solid #e5e7eb', background: 'white' }}>
           <button className="btn btn-danger" style={{ padding: '5px 12px', fontSize: 13 }} onClick={onEnd}>End Chat</button>
+        </div>
+      )}
+      {chatEnded && (
+        <div style={{ padding: '6px 12px', fontSize: 12, color: '#6b7280', background: '#F3F4F6', textAlign: 'center' }}>
+          This chat has ended.
         </div>
       )}
       <div className="chat-messages">
@@ -114,9 +135,10 @@ export default function AssociateChatPanel({ flexClient, taskSid, worker, onEnd 
           value={input}
           onChange={e => { setInput(e.target.value); conversation?.sendTyping?.(); }}
           onKeyDown={handleKey}
-          placeholder="Type a message..."
+          placeholder={chatEnded ? 'Chat ended' : 'Type a message...'}
+          disabled={chatEnded}
         />
-        <button className="btn btn-primary" onClick={sendMessage}>Send</button>
+        <button className="btn btn-primary" onClick={sendMessage} disabled={chatEnded}>Send</button>
       </div>
     </div>
   );

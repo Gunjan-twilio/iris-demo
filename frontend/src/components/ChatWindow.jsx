@@ -13,6 +13,7 @@ export default function ChatWindow({
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [conversationObj, setConversationObj] = useState(null);
+  const [chatEnded, setChatEnded] = useState(false);
   const bottomRef = useRef(null);
   const clientRef = useRef(null);
 
@@ -35,6 +36,7 @@ export default function ChatWindow({
       if (!active) return;
 
       setConversationObj(activeConversation);
+      setChatEnded(activeConversation.state?.current !== 'active');
 
       const paginator = await activeConversation.getMessages();
       if (!active) return;
@@ -55,6 +57,12 @@ export default function ChatWindow({
           ];
         });
       });
+
+      activeConversation.on('updated', ({ updateReasons }) => {
+        if (updateReasons.includes('state')) {
+          setChatEnded(activeConversation.state?.current !== 'active');
+        }
+      });
     }
 
     bindMessagingPipeline().catch(console.error);
@@ -71,7 +79,7 @@ export default function ChatWindow({
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || !conversationObj) return;
+    if (!input.trim() || !conversationObj || chatEnded) return;
     const body = input.trim();
     setInput('');
     try {
@@ -83,6 +91,19 @@ export default function ChatWindow({
 
   const handleKey = (e) => {
     if (e.key === 'Enter') sendMessage();
+  };
+
+  const handleEndChat = async () => {
+    try {
+      await fetch(`${baseUrl}/end-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationSid }),
+      });
+    } catch (err) {
+      console.error('end-chat error:', err);
+    }
+    onEnd?.();
   };
 
   return (
@@ -100,10 +121,24 @@ export default function ChatWindow({
           <button
             className='btn btn-ghost'
             style={{ padding: '5px 12px', fontSize: 13 }}
-            onClick={onEnd}
+            onClick={handleEndChat}
+            disabled={chatEnded}
           >
             End Chat
           </button>
+        </div>
+      )}
+      {chatEnded && (
+        <div
+          style={{
+            padding: '6px 12px',
+            fontSize: 12,
+            color: '#6b7280',
+            background: '#F3F4F6',
+            textAlign: 'center',
+          }}
+        >
+          This chat has ended.
         </div>
       )}
       <div className='chat-messages'>
@@ -125,9 +160,10 @@ export default function ChatWindow({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder='Type a message...'
+          placeholder={chatEnded ? 'Chat ended' : 'Type a message...'}
+          disabled={chatEnded}
         />
-        <button className='btn btn-primary' onClick={sendMessage}>
+        <button className='btn btn-primary' onClick={sendMessage} disabled={chatEnded}>
           Send
         </button>
       </div>

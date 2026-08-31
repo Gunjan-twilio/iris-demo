@@ -267,6 +267,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
             throw err;
           }
         }
+        console.log('[Call Now v2] Accepted callback-task and bridging to associate...', channel);
 
         await fetch(`${baseUrl}/accept-reservation`, {
           method: 'POST',
@@ -275,6 +276,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
             task_sid: taskSid,
             reservation_sid: pendingReservation.sid,
             channel,
+            isCallback: true,
             seller_phone: attrs?.seller_phone || '',
             case_id: attrs?.case_id,
             worker_name: worker?.attributes?.full_name || worker?.friendlyName || '',
@@ -285,6 +287,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       }
 
       if (channel === 'call_now') {
+        console.log('[Call Now v1] Accepting call_now task and bridging to associate...');
         const attrs = { ...pendingAttrs };
         const workerIdentity = worker?.attributes?.contact_uri?.replace('client:', '') || 'associate';
 
@@ -411,6 +414,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
                 channel: 'phone',
               },
             }));
+            console.log('--- OUTBOUND CALL INITIATED ---', voiceCall);
             const caseId = pendingAttrs?.case_id;
             const attrs = { ...pendingAttrs };
             setActiveCalls(prev => ({ ...prev, [caseId]: voiceCall }));

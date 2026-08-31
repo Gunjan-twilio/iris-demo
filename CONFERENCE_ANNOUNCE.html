@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.10.1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Conference / Participant Announce</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.55; color: #1a1a1a; }
+  h1, h2, h3 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
+  code { background: #f6f8fa; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.92em; }
+  pre { background: #f6f8fa; padding: 1em; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #e1e4e8; padding: 0.5em 0.8em; text-align: left; }
+  th { background: #f6f8fa; }
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Conference / Participant Announce</h1>
+</header>
+<h1
+id="conference-participant-announce-say-on-seller-connect">Conference /
+Participant Announce (<code>&lt;Say&gt;</code> on seller connect)</h1>
+<p>Applies to the <strong>callback/conference</strong> flow (task
+created directy via <code>create-task.js</code> with
+<code>attributes.isCallback: true</code> and <code>routingTarget</code>—
+the associate accepts first, then Flex dials the seller into a
+conference named after the Task SID).</p>
+<h2 id="why-this-exists">Why this exists</h2>
+<p>Flex’s SDK bridges the associate and seller into a conference
+internally — there’s no TwiML webhook exposed for the moment the
+seller’s leg answers. To play a greeting at that moment, the backend
+polls the live conference/participants and then calls Twilio’s
+<strong>Announce API</strong>, which injects TwiML into an already-live
+conference without disturbing the existing bridge. Normal two-way audio
+resumes automatically once the announcement TwiML finishes (as long as
+it doesn’t <code>&lt;Hangup/&gt;</code>/redirect).</p>
+<h2 id="two-ways-to-announce">Two ways to announce</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Mode</th>
+<th>REST call</th>
+<th>Who hears it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Conference-level</strong></td>
+<td><code>POST /Conferences/{ConferenceSid}</code></td>
+<td>Everyone in the conference</td>
+</tr>
+<tr>
+<td><strong>Participant-level</strong></td>
+<td><code>POST /Conferences/{ConferenceSid}/Participants/{CallSid}</code></td>
+<td>Only that one leg</td>
+</tr>
+</tbody>
+</table>
+<p>Both take the same <code>AnnounceUrl</code> /
+<code>AnnounceMethod</code> parameters, pointing at a TwiML endpoint
+(eg. <code>call-now-connect-say.js</code> hosted on functions, which
+returns a <code>&lt;Say&gt;</code> or <code>&lt;Play&gt;</code>).</p>
+<p>The current implementation uses <strong>participant-level</strong>,
+targeted at the seller’s leg only, so the associate doesn’t hear the
+greeting. The conference-level call is kept commented out in
+<code>accept-reservation.js</code> for easy toggling back to “both
+parties hear it.”</p>
+<h2 id="steps-backend-flow">Steps (backend flow)</h2>
+<ol type="1">
+<li><strong>Trigger</strong>: Associate accepts the task in
+<code>AssociatePanel.jsx</code> → <code>AcceptTask</code> → frontend
+<code>POST /accept-reservation</code> with
+<code>{ task_sid, reservation_sid, channel: 'call_now', isCallback: true, ... }</code>.</li>
+<li><strong>Find the conference</strong>:
+<code>accept-reservation.js</code> polls
+<code>client.conferences.list({ friendlyName: task_sid, status: 'in-progress' })</code>
+(conference <code>friendlyName</code> is always the Task SID for this
+flow) until it exists.</li>
+<li><strong>Wait for the seller to answer</strong>: poll
+<code>client.conferences(conferenceSid).participants.list()</code> until
+there are 2 participants and both have
+<code>status === 'connected'</code> (Participant status enum:
+<code>queued | connecting | ringing | connected | complete | failed</code>
+— note it’s <code>connected</code>, not <code>in-progress</code>).</li>
+<li><strong>Identify the seller’s leg</strong>: fetch each participant’s
+Call resource (<code>client.calls(p.callSid).fetch()</code>) and pick
+the one whose <code>to</code> does <strong>not</strong> start with
+<code>client:</code> — the associate’s leg is always
+<code>client:&lt;worker_identity&gt;</code>, the seller’s is a plain
+PSTN number.</li>
+<li><strong>Announce</strong>: call
+<code>client.conferences(conferenceSid).participants(sellerCall.sid).update({ announceUrl, announceMethod: 'GET' })</code>
+pointing at <code>call-now-connect-say.js</code>. Twilio plays that
+TwiML into the seller’s leg only, then resumes normal conference
+audio.</li>
+<li><strong>Best-effort</strong>: the whole thing is wrapped in
+try/catch with bounded polling (~6 attempts × 1.5s per stage). If it
+times out or fails, a warning is logged but the rest of
+<code>accept-reservation.js</code> (Airtable update, HTTP response)
+still completes normally.</li>
+</ol>
+<h2 id="sequence-diagram">Sequence diagram</h2>
+<p>Mermaid source below — Lucidchart can import this directly (Import
+&gt; Diagram as code / Mermaid), or paste it into any Mermaid-compatible
+editor to tweak it.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Assoc as Associate
+    participant FE as AssociatePanel.jsx
+    participant BE as accept-reservation.js
+    participant Twilio as Twilio Conference API
+    participant Seller as Seller&#39;s phone
+
+    Assoc-&gt;&gt;FE: Accept task
+    FE-&gt;&gt;FE: AcceptTask (Flex SDK)
+    Note over FE,Twilio: Flex dials associate + seller into conference internally
+    Twilio-&gt;&gt;Seller: ring
+    FE-&gt;&gt;BE: POST /accept-reservation
+    BE-&gt;&gt;Twilio: list conferences (friendlyName=taskSid)
+    Twilio--&gt;&gt;BE: conferenceSid
+    BE-&gt;&gt;Twilio: poll participants
+    Twilio--&gt;&gt;BE: [associate: connected]
+    Seller-&gt;&gt;Twilio: answers call
+    BE-&gt;&gt;Twilio: poll participants
+    Twilio--&gt;&gt;BE: [associate: connected, seller: connected]
+    BE-&gt;&gt;Twilio: fetch each Call (to=?)
+    Twilio--&gt;&gt;BE: seller callSid
+    BE-&gt;&gt;Twilio: Update Participant (announceUrl=call-now-connect-say)
+    Twilio-&gt;&gt;Seller: plays &lt;Say&gt; &quot;Connecting you...&quot;
+    Note over Assoc,Seller: normal two-way conference audio
+    BE--&gt;&gt;FE: Airtable update, 200 OK</code></pre>
+</body>
+</html>
