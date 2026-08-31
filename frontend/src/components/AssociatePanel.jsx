@@ -93,8 +93,17 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       res.on('accepted', updated => {
         setPendingReservation(null);
         const attrs = updated.task.attributes;
+        // email_hybrid spawns a new task per seller reply on the same case_id.
+        // Update the existing tab's taskSid + attrs instead of skipping, or the
+        // tab stays pinned to the previous completed task and GetConversationByTask
+        // fails silently on send.
         setOpenCases(prev => {
-          if (prev.find(c => c.case_id === attrs.case_id)) return prev;
+          const existing = prev.find(c => c.case_id === attrs.case_id);
+          if (existing) {
+            return prev.map(c => c.case_id === attrs.case_id
+              ? { ...c, attrs: { ...c.attrs, ...attrs }, reservation: updated, taskSid: updated.task.sid }
+              : c);
+          }
           return [...prev, { case_id: attrs.case_id, attrs, reservation: updated, taskSid: updated.task.sid }];
         });
         setActiveTabId(attrs.case_id);
