@@ -44,7 +44,7 @@
 ### Auth / Token
 
 #### `token.js`
-Mints a Flex v4 JWE token for the associate via the Flex Users API. Used to initialize the Flex SDK client in `App.jsx`.
+Build-your-own-auth: mints a Flex v4 JWE token for a given `flex_user_sid` via the Flex Users API (`POST /Users/{flex_user_sid}/Tokens`). Called by `App.jsx`'s login form, which collects the Flex User SID directly instead of going through SSO.
 
 #### `seller-token.js`
 Mints a standard AccessToken with a `ChatGrant` for any identity. Used by both seller and associate to connect to the Conversations SDK.
@@ -128,7 +128,7 @@ Renders a Handlebars template with case context variables (`seller_name`, `case_
 ## React Components (Frontend)
 
 ### `App.jsx`
-Entry point. Handles SSO routing — initializes the Flex SDK client via `createClient()` using the token from `token.js`, then passes `flexClient` to `AssociatePanel`. Routes `/#/associate` and `/#/seller`.
+Entry point. Handles login — the associate enters their Flex User SID, which is exchanged for a token via `token.js`, then initializes the Flex SDK client via `createClient()` and passes `flexClient` to `AssociatePanel`. Routes `/#/associate` and `/#/seller`.
 
 ### `AssociatePanel.jsx`
 Main associate CRM. Responsibilities:

@@ -236,6 +236,48 @@ input:focus, select:focus {
   color: #374151;
 }
 
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.transfer-menu {
+  margin-top: 12px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.transfer-menu-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.transfer-menu-row:last-child { border-bottom: none; }
+
+.transfer-menu-queue-name {
+  font-size: 13px;
+  color: #374151;
+}
+
+.transfer-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.transfer-menu-loading,
+.transfer-menu-error {
+  font-size: 13px;
+  color: #6b7280;
+  padding: 6px 0;
+}
+
+.transfer-menu-error { color: #dc2626; }
+
 /* Waiting state */
 .waiting {
   margin-top: 20px;

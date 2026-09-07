@@ -1,96 +1,40 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import {
-  createClient,
-  getAuthenticationConfig,
-  getLoginDetails,
-  exchangeToken,
-} from '@twilio/flex-sdk';
+import { createClient } from '@twilio/flex-sdk';
 import SellerPanel from './components/SellerPanel.jsx';
 import AssociatePanel from './components/AssociatePanel.jsx';
 
 const BASE_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL;
 
-// please also see the Flex SDK sample app for auth flow - https://github.com/twilio-samples/flex-sdk-demo/blob/main/src/Login.tsx
-
-// Handles the OAuth redirect back from SSO (URL has ?code=&state= but no hash).
-// Exchanges the code for tokens, stores them, then navigates to the associate page.
-function OAuthCallback() {
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const authConfig = JSON.parse(
-      localStorage.getItem('auth-config') || 'null',
-    );
-    const loginDetails = JSON.parse(
-      localStorage.getItem('login-details') || 'null',
-    );
-
-    if (!code || !state || !authConfig || !loginDetails) {
-      window.location.replace('/index.html#/associate');
-      return;
-    }
-
-    exchangeToken({
-      ssoProfileSid: authConfig.connectionName,
-      codeVerifier: loginDetails.codeVerifier,
-      nonce: loginDetails.nonce,
-      code,
-    })
-      .then((tokenResponse) => {
-        localStorage.removeItem('auth-config');
-        localStorage.removeItem('login-details');
-        localStorage.setItem('jweToken', tokenResponse.accessToken);
-        localStorage.setItem('refreshToken', tokenResponse.refreshToken);
-        window.location.replace('/index.html#/associate');
-      })
-      .catch((err) => {
-        console.error('Token exchange failed', err);
-        window.location.replace('/index.html#/associate');
-      });
-  }, []);
-
-  return (
-    <div style={{ padding: '40px', textAlign: 'center' }}>Logging in...</div>
-  );
-}
+// Build-your-own-auth: the login screen provides a Flex User SID, and we mint
+// an authentication token for it via the token.js backend function.
+// https://www.twilio.com/docs/flex/developer/flex-sdk/authentication#option-3-build-your-own-authentication
 
 function AssociatePage() {
   const [flexClient, setFlexClient] = useState(null);
   const [jweToken, setJweToken] = useState(() =>
     localStorage.getItem('jweToken'),
   );
-  const [runtimeDomain, setRuntimeDomain] = useState(
-    localStorage.getItem('runtimeDomain') || '',
+  const [flexUserSid, setFlexUserSid] = useState(
+    localStorage.getItem('flexUserSid') || '',
   );
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!jweToken) return;
 
-    const refreshToken = localStorage.getItem('refreshToken');
-    const sessionOptions = refreshToken
-      ? { refreshToken, autoUpdateToken: true, isConsoleLogin: false }
-      : { autoUpdateToken: false };
-
     createClient(jweToken, {
       logLevel: 'warn',
-      session: sessionOptions,
       voiceOptions: {
         autoAcceptIncomingCalls: true,
       },
     })
       .then((client) => {
-        client.addListener('tokenUpdated', (token) => {
-          localStorage.setItem('jweToken', token);
-        });
         setFlexClient(client);
       })
       .catch((err) => {
         console.error('createClient failed:', err);
         localStorage.removeItem('jweToken');
-        localStorage.removeItem('refreshToken');
         setJweToken(null);
       });
   }, [jweToken]);
@@ -99,20 +43,21 @@ function AssociatePage() {
     e.preventDefault();
     setError(null);
     try {
-      localStorage.setItem('runtimeDomain', runtimeDomain);
-      const authConfig = await getAuthenticationConfig({ runtimeDomain });
-      const activeConfig = authConfig.configList.find((c) => c.active);
-      localStorage.setItem('auth-config', JSON.stringify(activeConfig));
-      const response = await getLoginDetails({
-        ssoProfileSid: authConfig.configList[0].ssoProfileSid,
-        clientId: authConfig.configList[0].clientId,
-        redirectUrl: window.location.origin + window.location.pathname,
+      localStorage.setItem('flexUserSid', flexUserSid);
+      const res = await fetch(`${BASE_URL}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flex_user_sid: flexUserSid }),
       });
-      localStorage.setItem('login-details', JSON.stringify(response));
-      window.location.href = response.loginUrl;
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        throw new Error(data.error || 'Failed to mint Flex token');
+      }
+      localStorage.setItem('jweToken', data.token);
+      setJweToken(data.token);
     } catch (err) {
-      setError('Error while fetching auth config');
-      console.error('Error while fetching auth config', err);
+      setError('Error while minting Flex token');
+      console.error('Error while minting Flex token', err);
     }
   };
 
@@ -139,12 +84,12 @@ function AssociatePage() {
           <label
             style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
           >
-            Runtime Domain
+            Flex User SID
             <input
               type='text'
-              value={runtimeDomain}
-              onChange={(e) => setRuntimeDomain(e.target.value)}
-              placeholder='e.g. iris-demo-2775-dev.twil.io'
+              value={flexUserSid}
+              onChange={(e) => setFlexUserSid(e.target.value)}
+              placeholder='e.g. FUxxxxxxxxxxxxxxxxxxxxx'
               style={{ padding: '8px', fontSize: '14px' }}
             />
           </label>
@@ -166,10 +111,6 @@ function SellerPage() {
 
 // For production app, Associate and Seller would be separate apps, but for this demo we combine them into one app with a simple router.
 export default function App() {
-  if (new URLSearchParams(window.location.search).has('code')) {
-    return <OAuthCallback />;
-  }
-
   return (
     <HashRouter>
       <Routes>

@@ -36,7 +36,7 @@ function flexRequest(method, path, body, accountSid, authToken) {
 
 exports.handler = async function (context, event, callback) {
   const { ACCOUNT_SID, AUTH_TOKEN } = context;
-  const identity = event.identity || 'associate1';
+  const { flex_user_sid } = event;
 
   const response = new Twilio.Response();
   response.appendHeader('Access-Control-Allow-Origin', '*');
@@ -44,43 +44,25 @@ exports.handler = async function (context, event, callback) {
   response.appendHeader('Access-Control-Allow-Headers', 'Content-Type');
   response.appendHeader('Content-Type', 'application/json');
 
+  if (!flex_user_sid) {
+    response.setStatusCode(400);
+    response.setBody({ error: 'flex_user_sid is required' });
+    return callback(null, response);
+  }
+
   try {
-    // Step 1: look up user by username
-    let flexUserSid;
-    const lookup = await flexRequest('GET', `/Users?Username=${encodeURIComponent(identity)}`, null, ACCOUNT_SID, AUTH_TOKEN);
-
-    if (lookup.status === 200 && lookup.body.users && lookup.body.users.length > 0) {
-      flexUserSid = lookup.body.users[0].flex_user_sid;
-    } else {
-      // Step 2: provision the user
-      const provision = await flexRequest('POST', '/Users/Provision', {
-        username: identity,
-        email: `${identity}@iris-demo.local`,
-        full_name: 'IRIS Associate',
-        roles: ['agent'],
-        worker: {},
-      }, ACCOUNT_SID, AUTH_TOKEN);
-
-      if (provision.status !== 200 && provision.status !== 201) {
-        console.error('Provision failed:', JSON.stringify(provision.body));
-        response.setStatusCode(500);
-        response.setBody({ error: 'Failed to provision Flex user', detail: provision.body });
-        return callback(null, response);
-      }
-      flexUserSid = provision.body.flex_user_sid;
-    }
-
-    // Step 3: mint a token
-    const mint = await flexRequest('POST', `/Users/${flexUserSid}/Tokens`, { ttl: 3600 }, ACCOUNT_SID, AUTH_TOKEN);
+    // Mint an authentication token for the given Flex user.
+    // https://www.twilio.com/docs/flex/developer/flex-sdk/authentication#mint-an-authentication-token
+    const mint = await flexRequest('POST', `/Users/${flex_user_sid}/Tokens`, { ttl: 3600 }, ACCOUNT_SID, AUTH_TOKEN);
 
     if (mint.status !== 200 && mint.status !== 201) {
       console.error('Token mint failed:', JSON.stringify(mint.body));
-      response.setStatusCode(500);
+      response.setStatusCode(mint.status || 500);
       response.setBody({ error: 'Failed to mint Flex token', detail: mint.body });
       return callback(null, response);
     }
 
-    response.setBody({ token: mint.body.access_token, identity });
+    response.setBody({ token: mint.body.access_token, flex_user_sid });
     return callback(null, response);
   } catch (err) {
     console.error('token.js error:', err);

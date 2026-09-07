@@ -18,7 +18,7 @@ This demonstrates how to build a fully custom contact center UI using Twilio's r
 | **Email (Custom)** | `channel: email_forwarded`. Fully custom email plane. SendGrid Inbound Parse (on `parse.yourdomain.com`) → external Express receiver (see `inbound-parse-receiver/`) → relay to a Twilio Function → append to a plain Conversation. Outbound sends via SendGrid API. Chosen when the customer cannot cede any DNS/MX to Twilio (e.g. Walmart's `walmart.com` root MX constraint per the July 2026 solution PDF pages 5–6). |
 
 **Associate CRM features:**
-- SSO login via Flex v4 Auth
+- Build-your-own-auth login via Flex v4 Auth (Flex User SID → minted token)
 - Real-time reservation alerts with accept/reject + countdown timer
 - Dynamic worker status (Available, Break, Lunch, Training, etc.)
 - Case tabs with chat, email thread, and phone controls
@@ -122,7 +122,7 @@ iris-walmart-demo/
 │   ├── .env                      # copy of root .env (needed for deploy)
 │   ├── package.json
 │   └── functions/
-│       ├── token.js                      # Flex v4 SSO token for associate
+│       ├── token.js                      # Flex v4 token for associate (build-your-own-auth)
 │       ├── seller-token.js               # Conversations token for seller
 │       ├── voice-token.js                # VoiceGrant token for browser Device (Call Now)
 │       ├── create-task.js                # creates TaskRouter task + Airtable record (phone/email/call_now)
@@ -145,7 +145,7 @@ iris-walmart-demo/
 └── frontend/                     # React + Vite
     ├── .env                      # VITE_ prefixed vars
     └── src/
-        ├── App.jsx               # SSO login + routing
+        ├── App.jsx               # Flex User SID login + routing
         └── components/
             ├── AssociatePanel.jsx
             ├── SellerPanel.jsx

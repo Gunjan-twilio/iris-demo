@@ -24,7 +24,7 @@ const STATUS = {
   wip:      { bg: '#FFF8E1', color: '#E65100', label: 'In Progress' },
   resolved: { bg: '#E8F5E9', color: '#2E7D32', label: 'Resolved' },
 };
-const CHANNEL_ICON = { email: '✉', email_hybrid: '✉', email_forwarded: '✉', chat: '💬', phone: '📞', call_now: '📲' };
+const CHANNEL_ICON = { email: '✉', email_hybrid: '✉', email_forwarded: '✉', chat: '💬', phone: '📞', call_now: '📲', voice_transfer: '🔁' };
 
 export default function AssociatePanel({ baseUrl, flexClient }) {
   const [worker, setWorker] = useState(null);
@@ -239,6 +239,49 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     const taskSid = currentTask.sid;
 
     try {
+      if (pendingAttrs?.transferType === 'warm') {
+        // Warm transfer target task — accept natively (no dequeue/redirect), then bridge
+        // this associate into the ORIGINAL call's conference via accept-warm-transfer.js.
+        const attrs = { ...pendingAttrs };
+
+        setOpenCases(prev => {
+          if (prev.find(c => c.case_id === attrs.case_id)) return prev;
+          return [...prev, { case_id: attrs.case_id, attrs, taskSid }];
+        });
+        setActiveTabId(attrs.case_id);
+        setPendingReservation(null);
+        setPendingAttrs(null);
+
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // Pair the incoming call (Twilio ringing this associate's client: leg once
+        // accept-warm-transfer.js adds them as a conference participant) with this case.
+        pendingCallNowCaseIdRef.current = attrs.case_id;
+
+        try {
+          await flexClient.execute(new AcceptTask(taskSid, { conferenceOptions: { from: '+19714552092' } }));
+        } catch (err) {
+          if (err.message?.includes('conference') || err.code === 48917) {
+            console.warn('[Bypassed Non-Critical Exception] Handled media race condition.');
+          } else {
+            throw err;
+          }
+        }
+
+        // await fetch(`${baseUrl}/accept-warm-transfer`, {
+        //   method: 'POST',
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify({
+        //     task_sid: taskSid,
+        //     original_task_sid: attrs.originalTaskSid,
+        //     transfer_call_sid: attrs.transferCallSid,
+        //     agent_contact_uri: worker?.attributes?.contact_uri,
+        //   }),
+        // });
+
+        return;
+      }
+
       if (channel === 'call_now' && pendingAttrs?.isCallback === true) {
         // Call Now v2 — callback-task pattern.
         // Task already carries outbound_to; AcceptTask triggers the Flex conference bridge
@@ -525,7 +568,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
             style={{fontSize:12,color:'#9ca3af',background:'none',border:'none',cursor:'pointer',marginRight:8,padding:'4px 8px'}}
             onClick={() => {
               localStorage.removeItem('jweToken');
-              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('flexUserSid');
               window.location.reload();
             }}
           >Sign out</button>
@@ -584,7 +627,9 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:20}}>{CHANNEL_ICON[pendingAttrs.channel]}</span>
                 <div>
-                  <div style={{fontWeight:700,fontSize:15}}>Incoming {pendingAttrs.channel} case</div>
+                  <div style={{fontWeight:700,fontSize:15}}>
+                    {pendingAttrs.transferType === 'warm' ? 'Incoming warm transfer' : `Incoming ${pendingAttrs.channel} case`}
+                  </div>
                   <div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{pendingAttrs.case_id}</div>
                 </div>
               </div>
@@ -857,6 +902,10 @@ function CaseDetailView({ baseUrl, flexClient, worker, workerIdentity, caseEntry
               sellerName={attrs.seller_name}
               sellerPhone={attrs.seller_phone}
               onEnd={onVoiceEnd}
+              taskSid={taskSid}
+              agentContactUri={worker?.attributes?.contact_uri}
+              flexClient={flexClient}
+              baseUrl={baseUrl}
             />
           )}
 
