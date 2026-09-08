@@ -1,8 +1,8 @@
 const twilio = require('twilio');
 
-// Manual counterpart to the auto-hold in initiate-warm-transfer.js — lets
-// Agent1 bring the seller back into the conference (e.g. once Agent2 has
-// joined and the consult is done).
+// Manual counterpart to unhold-seller.js — lets either agent on the call
+// (Agent1 on the original task, or Agent2 once bridged into the same
+// conference during a warm transfer) put the seller's leg on hold.
 exports.handler = async function (context, event, callback) {
   const response = new Twilio.Response();
   response.appendHeader('Access-Control-Allow-Origin', '*');
@@ -46,12 +46,12 @@ exports.handler = async function (context, event, callback) {
       return callback(null, response);
     }
 
-    await client.conferences(conferenceSid).participants(customerCallSid).update({ hold: false });
+    await client.conferences(conferenceSid).participants(customerCallSid).update({ hold: true });
 
     response.setBody({ success: true });
     return callback(null, response);
   } catch (err) {
-    console.error('[unhold-seller]', err);
+    console.error('[hold-seller]', err);
     response.setStatusCode(500);
     response.setBody({ error: err.message });
     return callback(null, response);

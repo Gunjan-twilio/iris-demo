@@ -19,8 +19,8 @@ export default function PhoneControls({
   const [transferringQueueSid, setTransferringQueueSid] = useState(null);
   const [transferError, setTransferError] = useState(null);
   const [sellerOnHold, setSellerOnHold] = useState(false);
-  const [unholding, setUnholding] = useState(false);
-  const [unholdError, setUnholdError] = useState(null);
+  const [holdToggling, setHoldToggling] = useState(false);
+  const [holdError, setHoldError] = useState(null);
   const [transferInProgress, setTransferInProgress] = useState(false);
   const [completingTransfer, setCompletingTransfer] = useState(false);
   const [completeTransferError, setCompleteTransferError] = useState(null);
@@ -101,26 +101,28 @@ export default function PhoneControls({
     }
   };
 
-  const handleUnhold = async () => {
-    if (!taskSid || unholding) return;
-    setUnholdError(null);
-    setUnholding(true);
+  const handleToggleHold = async () => {
+    if (!taskSid || holdToggling) return;
+    const nextHold = !sellerOnHold;
+    const endpoint = nextHold ? 'hold-seller' : 'unhold-seller';
+    setHoldError(null);
+    setHoldToggling(true);
     try {
-      const res = await fetch(`${baseUrl}/unhold-seller`, {
+      const res = await fetch(`${baseUrl}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskSid }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `unhold-seller failed (${res.status})`);
+        throw new Error(body.error || `${endpoint} failed (${res.status})`);
       }
-      setSellerOnHold(false);
+      setSellerOnHold(nextHold);
     } catch (err) {
-      console.error('[Unhold] failed', err);
-      setUnholdError(err.message);
+      console.error(`[${nextHold ? 'Hold' : 'Unhold'}] failed`, err);
+      setHoldError(err.message);
     } finally {
-      setUnholding(false);
+      setHoldToggling(false);
     }
   };
 
@@ -170,13 +172,13 @@ export default function PhoneControls({
             Transfer
           </button>
         )}
-        {sellerOnHold && (
+        {taskSid && connected && (
           <button
             className='btn btn-ghost'
-            onClick={handleUnhold}
-            disabled={unholding}
+            onClick={handleToggleHold}
+            disabled={holdToggling}
           >
-            {unholding ? 'Unholding...' : 'Unhold'}
+            {holdToggling ? (sellerOnHold ? 'Unholding...' : 'Holding...') : (sellerOnHold ? 'Unhold' : 'Hold')}
           </button>
         )}
         {transferInProgress && (
@@ -193,7 +195,7 @@ export default function PhoneControls({
         </button>
       </div>
 
-      {unholdError && <div className='transfer-menu-error'>{unholdError}</div>}
+      {holdError && <div className='transfer-menu-error'>{holdError}</div>}
       {completeTransferError && <div className='transfer-menu-error'>{completeTransferError}</div>}
 
       {showTransferMenu && (
