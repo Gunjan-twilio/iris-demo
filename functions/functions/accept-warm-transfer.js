@@ -28,29 +28,34 @@ exports.handler = async function (context, event, callback) {
   try {
     const client = twilio(context.ACCOUNT_SID, context.AUTH_TOKEN);
 
-    await client.conferences(original_task_sid).participants.create({
-      to: agent_contact_uri,
-      from: context.TWILIO_PHONE_NUMBER,
-      earlyMedia: true,
-      endConferenceOnExit: false,
-    });
+    // await client.conferences(original_task_sid).participants.create({
+    //   to: agent_contact_uri,
+    //   from: context.TWILIO_PHONE_NUMBER,
+    //   earlyMedia: true,
+    //   endConferenceOnExit: false,
+    // });
+    let task = await client.taskrouter.v1.workspaces(context.WORKSPACE_SID).tasks(task_sid).fetch();
+    let taskAttrs = JSON.parse(task.attributes || '{}');
+    let conferenceSid = taskAttrs.conference?.sid || task.sid;
+    console.log('conferenceSid', taskAttrs, conferenceSid);
+    await client.conferences(conferenceSid).update({status: 'completed'});
 
-    if (transfer_call_sid) {
-      try {
-        await client.calls(transfer_call_sid).update({ status: 'completed' });
-      } catch (err) {
-        console.warn('[accept-warm-transfer] failed to hang up parked leg', transfer_call_sid, err.message);
-      }
-    }
+    // if (transfer_call_sid) {
+    //   try {
+    //     await client.calls(transfer_call_sid).update({ status: 'completed' });
+    //   } catch (err) {
+    //     console.warn('[accept-warm-transfer] failed to hang up parked leg', transfer_call_sid, err.message);
+    //   }
+    // }
 
-    try {
-      await client.taskrouter.v1
-        .workspaces(context.WORKSPACE_SID)
-        .tasks(task_sid)
-        .update({ assignmentStatus: 'wrapping', reason: 'warm transfer bridged' });
-    } catch (err) {
-      console.warn('[accept-warm-transfer] failed to move task 2 to wrapping', err.message);
-    }
+    // try {
+    //   await client.taskrouter.v1
+    //     .workspaces(context.WORKSPACE_SID)
+    //     .tasks(task_sid)
+    //     .update({ assignmentStatus: 'wrapping', reason: 'warm transfer bridged' });
+    // } catch (err) {
+    //   console.warn('[accept-warm-transfer] failed to move task 2 to wrapping', err.message);
+    // }
 
     response.setBody({ success: true });
     return callback(null, response);

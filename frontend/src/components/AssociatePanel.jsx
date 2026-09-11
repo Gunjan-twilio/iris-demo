@@ -259,7 +259,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         pendingCallNowCaseIdRef.current = attrs.case_id;
 
         try {
-          await flexClient.execute(new AcceptTask(taskSid, { conferenceOptions: { from: '+19714552092' } }));
+          await flexClient.execute(new AcceptTask(taskSid, { conferenceOptions: { conferenceRecord: false, from: '+19714552092' } }));
         } catch (err) {
           if (err.message?.includes('conference') || err.code === 48917) {
             console.warn('[Bypassed Non-Critical Exception] Handled media race condition.');

@@ -22,6 +22,10 @@ export default function PhoneControls({
   const [holdToggling, setHoldToggling] = useState(false);
   const [holdError, setHoldError] = useState(null);
   const [transferInProgress, setTransferInProgress] = useState(false);
+  const [transferCallSid, setTransferCallSid] = useState(null);
+  const [transferAccepted, setTransferAccepted] = useState(false);
+  const [cancelingTransfer, setCancelingTransfer] = useState(false);
+  const [cancelTransferError, setCancelTransferError] = useState(null);
   const [completingTransfer, setCompletingTransfer] = useState(false);
   const [completeTransferError, setCompleteTransferError] = useState(null);
   const { queues, loading: queuesLoading, error: queuesError } = useQueues(showTransferMenu ? flexClient : null);
@@ -90,14 +94,48 @@ export default function PhoneControls({
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `initiate-warm-transfer failed (${res.status})`);
       }
+      const body = await res.json();
       setShowTransferMenu(false);
       setSellerOnHold(true);
       setTransferInProgress(true);
+      setTransferCallSid(body.callSid || null);
+      setTransferAccepted(false);
+      setCancelTransferError(null);
     } catch (err) {
       console.error('[Warm Transfer] failed', err);
       setTransferError(err.message);
     } finally {
       setTransferringQueueSid(null);
+    }
+  };
+
+  const handleCancelTransfer = async () => {
+    if (!taskSid || !transferCallSid || cancelingTransfer) return;
+    setCancelTransferError(null);
+    setCancelingTransfer(true);
+    try {
+      const res = await fetch(`${baseUrl}/cancel-warm-transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskSid, transferCallSid }),
+      });
+      if (res.status === 409) {
+        setTransferAccepted(true);
+        setCancelTransferError('Transfer already accepted — use Complete Transfer instead.');
+        return;
+      }
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `cancel-warm-transfer failed (${res.status})`);
+      }
+      setTransferInProgress(false);
+      setSellerOnHold(false);
+      setTransferCallSid(null);
+    } catch (err) {
+      console.error('[Cancel Transfer] failed', err);
+      setCancelTransferError(err.message);
+    } finally {
+      setCancelingTransfer(false);
     }
   };
 
@@ -142,6 +180,7 @@ export default function PhoneControls({
       }
       setSellerOnHold(false);
       setTransferInProgress(false);
+      setTransferCallSid(null);
       await endCall();
     } catch (err) {
       console.error('[Complete Transfer] failed', err);
@@ -181,6 +220,15 @@ export default function PhoneControls({
             {holdToggling ? (sellerOnHold ? 'Unholding...' : 'Holding...') : (sellerOnHold ? 'Unhold' : 'Hold')}
           </button>
         )}
+        {transferInProgress && !transferAccepted && (
+          <button
+            className='btn btn-ghost'
+            onClick={handleCancelTransfer}
+            disabled={cancelingTransfer}
+          >
+            {cancelingTransfer ? 'Canceling...' : 'Cancel Transfer'}
+          </button>
+        )}
         {transferInProgress && (
           <button
             className='btn btn-ghost'
@@ -196,6 +244,7 @@ export default function PhoneControls({
       </div>
 
       {holdError && <div className='transfer-menu-error'>{holdError}</div>}
+      {cancelTransferError && <div className='transfer-menu-error'>{cancelTransferError}</div>}
       {completeTransferError && <div className='transfer-menu-error'>{completeTransferError}</div>}
 
       {showTransferMenu && (
