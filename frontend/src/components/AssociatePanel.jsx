@@ -104,6 +104,7 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         const attrs = res.task.attributes || {};
         const channelType = attrs.channel;
         const taskChannel = res.task.taskChannelUniqueName;
+        console.log('[Reservation completed]', { taskSid: res.task.sid, taskChannel, caseId: attrs.case_id });
 
         if (channelType === 'phone' && taskChannel !== 'voice') {
           loadRecentCases();
@@ -112,15 +113,25 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         if (attrs.case_id) setOpenCases(prev => prev.filter(c => c.case_id !== attrs.case_id));
         loadRecentCases();
       });
-      res.on('canceled', () => setPendingReservation(null));
+      res.on('canceled', () => {
+        console.log('[Reservation canceled]', { taskSid: res.task.sid, taskChannel: res.task.taskChannelUniqueName });
+        setPendingReservation(null);
+      });
       res.on('rescinded', () => setPendingReservation(null));
-      res.on('timeout', () => setPendingReservation(null));
-      res.on('rejected', () => { setPendingReservation(null); setPendingAttrs(null); });
+      res.on('timeout', () => {
+        console.log('[Reservation timeout]', { taskSid: res.task.sid, taskChannel: res.task.taskChannelUniqueName });
+        setPendingReservation(null);
+      });
+      res.on('rejected', () => {
+        console.log('[Reservation rejected]', { taskSid: res.task.sid, taskChannel: res.task.taskChannelUniqueName });
+        setPendingReservation(null);
+        setPendingAttrs(null);
+      });
     };
 
     const handleReservation = (res) => {
       const attrs = res.task.attributes || {};
-      console.log('[Reservation Event Execution]', res.status, attrs.case_id);
+      console.log('[Reservation create Event]', res.status, attrs.case_id, res.task.sid, res.task.taskChannelUniqueName);
 
       if (res.status !== 'pending') return;
 
@@ -136,9 +147,31 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
       }
 
       attachReservationListeners(res);
-      setPendingReservation(res);
-      setPendingAttrs(attrs);
-      setCountdown(20);
+
+      // Delay showing the accept/reject popup by 2s instead of displaying it
+      // immediately. The backend capacity guard (assignment-callback.js) can
+      // reject this exact reservation — or evict it in favor of a
+      // higher-priority one — within a few hundred ms of reservation.created,
+      // via a REST call that's independent of this reservationCreated
+      // WebSocket event (no ordering guarantee between the two). Without this
+      // delay, the popup flashes on screen and immediately disappears when
+      // the backend's rejection lands a moment later. By the time this timer
+      // fires, that race has settled, so this either shows a reservation the
+      // associate can actually act on, or shows nothing at all.
+      let settled = false;
+      const markSettled = () => { settled = true; };
+      res.on('rejected', markSettled);
+      res.on('canceled', markSettled);
+      res.on('rescinded', markSettled);
+      res.on('timeout', markSettled);
+      res.on('accepted', markSettled);
+
+      setTimeout(() => {
+        if (!mounted || settled || res.status !== 'pending') return;
+        setPendingReservation(res);
+        setPendingAttrs(attrs);
+        setCountdown(20);
+      }, 2000);
     };
 
     const init = async () => {

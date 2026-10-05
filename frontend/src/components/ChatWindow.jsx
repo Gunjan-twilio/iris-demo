@@ -14,12 +14,54 @@ export default function ChatWindow({
   const [input, setInput] = useState('');
   const [conversationObj, setConversationObj] = useState(null);
   const [chatEnded, setChatEnded] = useState(false);
+  const [otherIdentity, setOtherIdentity] = useState(null);
+  const [otherOnline, setOtherOnline] = useState(null);
   const bottomRef = useRef(null);
   const clientRef = useRef(null);
+  const otherIdentityRef = useRef(null);
 
   useEffect(() => {
     if (!conversationSid || !identity) return;
     let active = true;
+
+    async function trackOtherParticipant(client, activeConversation) {
+      if (!client.reachabilityEnabled) return;
+
+      const refreshOtherParticipant = async () => {
+        const participants = await activeConversation.getParticipants();
+        const other = participants.find(
+          (p) => p.identity && p.identity !== identity,
+        );
+        if (!active) return;
+
+        if (!other) {
+          otherIdentityRef.current = null;
+          setOtherIdentity(null);
+          setOtherOnline(null);
+          return;
+        }
+
+        const user = await other.getUser();
+        if (!active) return;
+        otherIdentityRef.current = user.identity;
+        setOtherIdentity(user.identity);
+        setOtherOnline(user.isOnline);
+      };
+
+      await refreshOtherParticipant();
+
+      client.on('userUpdated', ({ user, updateReasons }) => {
+        if (
+          user.identity === otherIdentityRef.current &&
+          updateReasons.includes('reachabilityOnline')
+        ) {
+          setOtherOnline(user.isOnline);
+        }
+      });
+
+      activeConversation.on('participantJoined', refreshOtherParticipant);
+      activeConversation.on('participantLeft', refreshOtherParticipant);
+    }
 
     async function bindMessagingPipeline() {
       // Both associate and seller use seller-token endpoint with their respective identity.
@@ -63,6 +105,8 @@ export default function ChatWindow({
           setChatEnded(activeConversation.state?.current !== 'active');
         }
       });
+
+      await trackOtherParticipant(client, activeConversation);
     }
 
     bindMessagingPipeline().catch(console.error);
@@ -71,6 +115,7 @@ export default function ChatWindow({
       active = false;
       clientRef.current?.shutdown();
       clientRef.current = null;
+      otherIdentityRef.current = null;
     };
   }, [conversationSid, identity]);
 
@@ -108,24 +153,52 @@ export default function ChatWindow({
 
   return (
     <div className='chat-window'>
-      {onEnd && (
+      {(otherOnline !== null || onEnd) && (
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             padding: '8px 12px',
             borderBottom: '1px solid #e5e7eb',
             background: 'white',
           }}
         >
-          <button
-            className='btn btn-ghost'
-            style={{ padding: '5px 12px', fontSize: 13 }}
-            onClick={handleEndChat}
-            disabled={chatEnded}
-          >
-            End Chat
-          </button>
+          {otherOnline !== null ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                color: otherOnline ? '#2E7D32' : '#9ca3af',
+              }}
+              title={otherIdentity}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: otherOnline ? '#2E7D32' : '#9ca3af',
+                  display: 'inline-block',
+                }}
+              />
+              {otherOnline ? 'Online' : 'Offline'}
+            </div>
+          ) : (
+            <span />
+          )}
+          {onEnd && (
+            <button
+              className='btn btn-ghost'
+              style={{ padding: '5px 12px', fontSize: 13 }}
+              onClick={handleEndChat}
+              disabled={chatEnded}
+            >
+              End Chat
+            </button>
+          )}
         </div>
       )}
       {chatEnded && (

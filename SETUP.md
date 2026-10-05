@@ -291,18 +291,26 @@ After first deploy:
    https://<your-domain>.twil.io/assignment-callback
    ```
 
-   This stamps `task_sid` and `reservation_sid` onto Airtable cases so the associate panel can look up pending reservations.
+   This stamps `task_sid` and `reservation_sid` onto Airtable cases so the associate panel can look up pending reservations. It also runs a capacity guard for `chat`/`voice`/`email` Task Channels before any reservation reaches the associate — see `docs/tech-notes/taskrouter-capacity-routing-solution.md` Section 7.
 
-3. **Frontend env** — set `VITE_FUNCTIONS_BASE_URL` in `frontend/.env` to the domain above, then redeploy:
+3. **TaskRouter event callback** — Console → TaskRouter → Workspace → Settings → set Event Callback URL to:
+
+   ```
+   https://<your-domain>.twil.io/taskrouter-event-callback
+   ```
+
+   This is a Workspace-level setting (not tied to any one Workflow). It maintains the `totalAssignedTasks` worker-attribute counter the assignment callback's guard reads, zeroes/restores `chat`/`voice`/`email` WorkerChannel capacity on accept/complete, and writes `task.last_rejected_by` on reject/timeout for Workflows whose filters reference it (give-back-on-decline). Without this set, the guard still runs but without the counter or capacity sync — see Section 7 of the tech note above.
+
+4. **Frontend env** — set `VITE_FUNCTIONS_BASE_URL` in `frontend/.env` to the domain above, then redeploy:
 
    ```bash
    npm run deploy
    ```
 
-4. **Airtable `channel` field** — add these valid values to the single-select (or allow free text):
+5. **Airtable `channel` field** — add these valid values to the single-select (or allow free text):
    `chat`, `phone`, `email`, `email_hybrid`, `email_forwarded`, `call_now`
 
-5. **TaskRouter activities** — the associate status menu is driven live from TaskRouter. You can add custom activities (Lunch, Training, etc.) via Console → TaskRouter → Workspace → Activities.
+6. **TaskRouter activities** — the associate status menu is driven live from TaskRouter. You can add custom activities (Lunch, Training, etc.) via Console → TaskRouter → Workspace → Activities.
 
 ---
 

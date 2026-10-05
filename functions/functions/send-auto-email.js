@@ -17,10 +17,8 @@ const twilio = require('twilio');
 // Email content is inline for now rather than accepted as input — edit the
 // constants below to change what gets sent.
 const DEFAULT_SUBJECT = 'Update on your request';
-const AUTO_EMAIL_PLAIN_BODY =
-  "Hello,\n\nThanks for reaching out. We've received your request and wanted to confirm we're on it. If you have any additional details to share, just reply to this email.\n\n— Support Team";
 const AUTO_EMAIL_HTML_BODY =
-  "<p>Hello,</p><p>Thanks for reaching out. We've received your request and wanted to confirm we're on it. If you have any additional details to share, just reply to this email.</p><p>— Support Team</p>";
+  "<p>Hello,</p><p><strong>Thanks for reaching out. We've received your request and wanted to confirm we're on it.</strong> If you have any additional details to share, just reply to this email.</p><p>— Support Team</p>";
 
 exports.handler = async function (context, event, callback) {
   const response = new Twilio.Response();
@@ -97,16 +95,17 @@ exports.handler = async function (context, event, callback) {
     // already have created it — this is a defensive, idempotent check.
     await ensureParticipant(conv, recipient);
 
-    // 3. Send the auto email: native body carries plain text, a Media
-    // attachment (content_type text/html) carries the rich body — this is
-    // the same media shape get-case-thread.js already expects when it looks
-    // for content-type text/html on a message's media.
+    // 3. Send the auto email: the HTML is uploaded to MCS with
+    // Category=body, and the message carries ONLY mediaSid — no Body. A
+    // message that sets both Body and mediaSid together becomes a "media
+    // message" (Twilio error 50509's shape), which is what makes email
+    // clients render the HTML as a downloadable attachment instead of the
+    // rendered body, regardless of the MCS category.
     const htmlMediaSid = await uploadHtmlMedia(context, AUTO_EMAIL_HTML_BODY);
-
+    console.log('[send-auto-email] htmlMediaSid:', htmlMediaSid);
     const message = await conv.messages.create({
       author: fromAddress,
       attributes: JSON.stringify({ subject: emailSubject, autoEmail: true }),
-      body: AUTO_EMAIL_PLAIN_BODY,
       mediaSid: htmlMediaSid,
     });
 
@@ -152,7 +151,7 @@ async function ensureParticipant(conv, address) {
 async function uploadHtmlMedia(context, html) {
   const auth = Buffer.from(`${context.ACCOUNT_SID}:${context.AUTH_TOKEN}`).toString('base64');
   const res = await fetch(
-    `https://mcs.us1.twilio.com/v1/Services/${context.CONVERSATIONS_SERVICE_SID}/Media`,
+    `https://mcs.us1.twilio.com/v1/Services/${context.CONVERSATIONS_SERVICE_SID}/Media?Category=body`,
     {
       method: 'POST',
       headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'text/html' },

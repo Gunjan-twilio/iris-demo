@@ -21,3 +21,12 @@ functions/assets/
 
 # Claude
 CLAUDE.md
+
+# Local-only folders
+/docs
+/agents
+/skills
+/scripts
+/functions/scripts
+docs/tech-notes/warm-transfer-voice.html
+docs/tech-notes/warm-transfer-voice.html

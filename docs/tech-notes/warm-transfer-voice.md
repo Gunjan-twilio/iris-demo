@@ -2,233 +2,103 @@
 
 ## Scope
 
-Covers the current, live, sequential two-conference warm-transfer implementation for `call_now`/`isCallback` voice tasks: `functions/functions/start-warm-consult.js`, `enqueue.js`, `complete-warm-consult.js`, `transfer-join-conference.js`, the seller-recording logic in `accept-reservation.js`, and the frontend wiring in `TransferMenu.jsx` (`handleWarm`/`handleCompleteTransfer`) and `AssociatePanel.jsx` (the plain `call_now` accept branch and `onWarmComplete`). It does not cover cold transfer (`transfer-cold.js`/`transfer-enqueue.js`) except where the two share code, and does not cover the disabled/dead `isWarmConsult` 3-way accept branch still present in `AssociatePanel.jsx` (kept only so `transfer-join-conference.js`'s legacy caller isn't an orphaned reference).
+Covers the current, live warm-transfer implementation for voice tasks (both the `call_now` callback pattern and the plain `call_now`/dequeue pattern): `functions/functions/initiate-warm-transfer.js`, `enqueue.protected.js`, `hold-seller.js`, `unhold-seller.js`, `complete-warm-transfer.js`, `cancel-warm-transfer.js`, and the frontend wiring in `PhoneControls.jsx` (`handleWarmTransfer`/`handleCancelTransfer`/`handleToggleHold`/`handleCompleteTransfer`) and `AssociatePanel.jsx`'s `transferType === 'warm'` accept branch.
+
+It does **not** cover cold transfer, and it does not cover three generations of now-dead warm-transfer code still sitting in the repo, kept only as reference/rollback material:
+- `transfer-warm.js` — explicitly disabled by its own header comment ("DISABLED — kept for future need"), superseded by `initiate-warm-transfer.js`.
+- `start-warm-consult.js` plus the old, non-`.protected` `enqueue.js`, `transfer-join-conference.js`, `leave-conference.js`, and `end-conference.js` — an earlier two-sequential-conference design. None of these are referenced from the current frontend (`grep` across `frontend/src` turns up nothing), so they appear to be dead code from a prior iteration rather than part of the live path.
+- `accept-warm-transfer.js` — still wired up conceptually (referenced by comments in `hold-seller.js`/`unhold-seller.js`/`enqueue.protected.js`) but its actual REST call to bridge the target associate into the original conference is commented out; see Gotchas.
 
 ## Overview
 
-The seller and Agent 1 talk in **Conference 1**, a Flex-auto-created conference named after Task 1's own SID (created when Agent 1 accepts via `pendingReservation.conference({...})`). The moment Agent 1 accepts, `accept-reservation.js` polls for the seller's leg and starts a **call-level recording** on the seller's own CallSid (`client.calls(sellerCall.sid).recordings.create(...)`) — call-level, not conference-level, so the same recording keeps running across any later TwiML redirect of that CallSid.
+The seller and Agent 1 (the associate who owns the call) end up together in **Conference 1**, a Flex/TaskRouter-auto-created conference named after Task 1's own SID — created either by `pendingReservation.dequeue({...})` (plain `call_now`) or by `AcceptTask(taskSid)` (the `isCallback` callback pattern), both in `AssociatePanel.jsx`.
 
-When Agent 1 wants to warm-transfer, `TransferMenu.jsx`'s `handleWarm` resolves Agent 1's own CallSid via the Flex SDK and POSTs to `start-warm-consult.js`, which:
-1. Holds the seller in Conference 1.
-2. Flips Agent 1's own Conference 1 participant to `endConferenceOnExit:false` (worker legs default to `true`; without this, redirecting Agent 1 away would end Conference 1 and drop the seller).
-3. REST-redirects Agent 1's own live call leg to `/enqueue`.
+When Agent 1 wants to bring in a second associate, `PhoneControls.jsx`'s `handleWarmTransfer` POSTs `{ taskSid, targetSid: queue.sid, from: agentContactUri }` to `initiate-warm-transfer.js`, which:
+1. Adds a **new Conference Participant** to Conference 1 (`client.conferences(taskSid).participants.create({ to: 'app:<TRANSFER_TWIML_APP_SID>?taskSid=...&targetSid=...', from, earlyMedia: true, endConferenceOnExit: false })`). This new call leg's own Voice URL (rather than joining Conference 1's audio) is what actually runs next.
+2. Holds the seller in Conference 1, resolving the seller's CallSid from Task 1's own `conference.participants.customer` attribute rather than guessing from the participant list.
 
-`enqueue.js` parks that redirected leg via `<Enqueue><Task>`, creating **Task 2** with Agent 1's real live call already attached and `originalTaskSid` stamped on its attributes (deliberately *not* `isWarmConsult`, so whichever associate accepts it goes through the plain `call_now` accept path in `AssociatePanel.jsx`, not the disabled 3-way branch).
+That new leg's Voice URL is `enqueue.protected.js` (the Voice URL configured on `TRANSFER_TWIML_APP_SID`), which fetches Task 1 for its case metadata and parks the leg into the transfer workflow's queue via `<Enqueue><Task>`, creating **Task 2** with `transferType: 'warm'`, `originalTaskSid` set to Task 1's SID, and `transferCallSid` set to the leg's own CallSid.
 
-Agent 2 accepts Task 2 normally. TaskRouter auto-creates **Conference 2** (named after Task 2's SID) and auto-dequeues Agent 1's parked leg into it — so Conference 2 now holds {Agent 1, Agent 2} for a private consult, with the seller still on hold in Conference 1. Agent 1 never has visibility into or control over Conference 2 beyond this initial creation.
+Meanwhile, the frontend shows "Cancel Transfer" and "Complete Transfer" buttons. Agent 1 can back out via `handleCancelTransfer` → `cancel-warm-transfer.js`, which finds Task 2 by scanning the workflow's recent tasks for one whose `originalTaskSid` matches (not `EvaluateTaskAttributes`, since that index drops a task the moment it's no longer pending/reserved, and not `transferCallSid`, since dialing `to: app:...` produces two distinct Call resources whose SIDs never match each other), cancels it if it's still `pending`/`reserved`, hangs up the parked leg, and unholds the seller. If Task 2 has already moved past `pending`/`reserved` (an agent accepted it), `cancel-warm-transfer.js` returns `409` instead, and the frontend flips to "Transfer already accepted — use Complete Transfer instead."
 
-When Agent 1 clicks "Complete transfer," `TransferMenu.jsx` POSTs `{ originalTaskSid }` to `complete-warm-consult.js`, which:
-1. Finds Task 2 via `EvaluateTaskAttributes: originalTaskSid == '...'` (Agent 1 never accepted Task 2, so this is its only handle on it).
-2. Flips Agent 1's Conference 2 participant to `endConferenceOnExit:false` and Agent 2's own Conference 2 participant to `endConferenceOnExit:true` (see Gotchas).
-3. Re-fetches Task 1, unholds the seller in Conference 1, and REST-redirects the seller's call to `/transfer-join-conference?taskSid=<Task2Sid>`.
+When a second associate (Agent 2) accepts Task 2, `AssociatePanel.jsx`'s `transferType === 'warm'` branch calls `AcceptTask(taskSid, { conferenceOptions: { conferenceRecord: false, from: '+19714552092' } })` — Flex's default conference-accept behavior, which auto-creates a new conference named after Task 2's own SID and auto-dequeues the parked leg into it. The actual REST call meant to then bridge Agent 2 (or that leg) into Conference 1 — `POST /accept-warm-transfer` — is commented out in this branch, and the handler itself (`accept-warm-transfer.js`) no longer performs that bridge either; see Gotchas for what this means in practice.
 
-`transfer-join-conference.js` dials the seller into Conference 2 with `endConferenceOnExit:true`. Conference 2 is now {Agent 2, Seller}; Conference 1 is empty and ends. The seller's original call-level recording keeps running uninterrupted through this hop. Agent 1's own call disconnects (`onWarmComplete` in `AssociatePanel.jsx`) and Task 1 completes.
+Either agent can toggle the seller's hold via `PhoneControls.jsx`'s `handleToggleHold`, which posts to `hold-seller.js`/`unhold-seller.js`. Both resolve the conference against **Task 1's** attributes even when called with Task 2's SID (checking `transferType === 'warm'` and re-fetching `originalTaskSid`), since Task 2 never carries its own `conference` attribute.
 
-Three parties are never in the same conference at once — this is a deliberate simplification over a genuine 3-way, driven by Twilio's 2-channel conference-recording cap and general 3-way audio complexity.
+When Agent 1 clicks "Complete Transfer," `handleCompleteTransfer` POSTs `{ taskSid, agentContactUri }` to `complete-warm-transfer.js`, which:
+1. Unholds the seller in Conference 1.
+2. Resolves Agent 1's own CallSid from Task 1's `conference.participants.worker` attribute (falling back to matching `agentContactUri` against the conference's live participants' `to` field).
+3. Flips Agent 1's participant to `endConferenceOnExit:false` (so Agent 1 leaving doesn't tear the conference down), then flips every *other* participant currently in Conference 1 to `endConferenceOnExit:true` (so the call behaves like a normal 2-party call once Agent 1 is gone).
+
+The frontend then calls the existing `endCall()` (`call.disconnect()`), which drops Agent 1's own leg.
 
 ## Sequence Diagram
 
 ```mermaid
 sequenceDiagram
     participant Seller
-    participant Agent1 as Agent 1 (AssociatePanel.jsx)
+    participant Agent1 as Agent 1 (PhoneControls.jsx)
     participant Agent2 as Agent 2 (AssociatePanel.jsx)
     participant BE as Backend Functions
     participant TR as TaskRouter/Twilio Conferences
 
-    Seller->>TR: Joins Conference 1 (Task 1 accept)
-    Agent1->>TR: pendingReservation.conference({...}) — joins Conference 1
-    BE->>BE: accept-reservation.js resolves seller CallSid,<br/>starts call-level recording (dual channel)
+    Seller->>TR: Joins Conference 1 (Task 1 accept — dequeue or AcceptTask)
+    Agent1->>TR: Joins Conference 1 as well (worker leg)
 
-    Agent1->>BE: POST /start-warm-consult {taskSid, targetQueueSid, agent1CallSid}
-    BE->>TR: hold seller in Conf 1
+    Agent1->>BE: POST /initiate-warm-transfer {taskSid, targetSid, from}
+    BE->>TR: conferences(taskSid).participants.create({to: app:TRANSFER_TWIML_APP_SID, ...})
+    BE->>TR: hold seller in Conference 1
+    TR->>BE: new leg's Voice URL request -> GET/POST /enqueue (TwiML App)
+    BE->>TR: <Enqueue><Task transferType=warm, originalTaskSid=Task1Sid> -> creates Task 2
+
+    opt Agent1 backs out before Task 2 accepted
+        Agent1->>BE: POST /cancel-warm-transfer {taskSid, transferCallSid}
+        BE->>TR: scan workflow tasks for originalTaskSid match
+        alt Task 2 still pending/reserved
+            BE->>TR: cancel Task 2, hang up parked leg, unhold seller
+        else Task 2 already accepted
+            BE-->>Agent1: 409 "Transfer already accepted"
+        end
+    end
+
+    Agent2->>TR: Accepts Task 2 via AcceptTask(taskSid, {conferenceOptions:{...}})
+    TR->>TR: Auto-creates Conference 2, auto-dequeues parked leg into it
+    Note over Agent1,Agent2: Intended: Agent 2 bridged into Conference 1 via<br/>POST /accept-warm-transfer — currently commented out (see Gotchas)
+
+    par Either agent
+        Agent1->>BE: POST /hold-seller or /unhold-seller {taskSid}
+        BE->>TR: resolve Conference 1 via originalTaskSid, toggle seller hold
+    end
+
+    Agent1->>BE: POST /complete-warm-transfer {taskSid, agentContactUri}
+    BE->>TR: unhold seller in Conference 1
+    BE->>TR: resolve Agent1's own CallSid (task attrs, or match agentContactUri)
     BE->>TR: Agent1 participant endConferenceOnExit=false
-    BE->>Agent1: REST redirect Agent1's call → /enqueue
-
-    Agent1->>BE: GET /enqueue (TwiML)
-    BE->>TR: <Enqueue><Task originalTaskSid=Task1Sid> → creates Task 2
-
-    Agent2->>TR: Accepts Task 2 via pendingReservation.conference({...})
-    TR->>TR: Auto-creates Conference 2, auto-dequeues Agent1's leg into it
-    Note over Agent1,Agent2: Conference 2 = {Agent 1, Agent 2} — private consult<br/>Seller still held in Conference 1
-
-    Agent1->>BE: POST /complete-warm-consult {originalTaskSid}
-    BE->>TR: EvaluateTaskAttributes lookup → finds Task 2
-    BE->>TR: Agent1 Conf2 participant endConferenceOnExit=false
-    BE->>TR: Agent2 Conf2 participant endConferenceOnExit=true
-    BE->>TR: unhold seller in Conf 1
-    BE->>Seller: REST redirect seller's call → /transfer-join-conference?taskSid=Task2Sid
-    Seller->>TR: Dials into Conference 2, endConferenceOnExit=true
-
-    Note over Agent2,Seller: Conference 2 = {Agent 2, Seller}<br/>Conference 1 empty/ended<br/>Recording continues uninterrupted
-    Agent1->>Agent1: onWarmComplete — disconnect own call, close case
+    BE->>TR: every OTHER Conference 1 participant endConferenceOnExit=true
+    Agent1->>Agent1: call.disconnect() — Agent1's own leg leaves
 ```
 
 ## Key Components
 
-- **`accept-reservation.js`** — on Task 1's original accept, polls the Flex-auto conference for the seller's leg (`resolveSellerCallOnConnect`) and starts a call-level dual-channel recording on the seller's own CallSid (`startSellerRecordingOnConnect`); for `isCallback` tasks also whispers a connect announcement to the seller (`announceOnSellerConnect`). Both helpers now share a single resolved `{conferenceSid, sellerCall}` per branch.
-
-  ```js
-  // Starts ONE call-level recording on the seller's own CallSid the moment
-  // their leg first connects into Conference 1. Persists across any later
-  // TwiML redirect for that CallSid, so it keeps going when a warm transfer
-  // later moves the seller's leg into Conference 2.
-  async function startSellerRecordingOnConnect(client, resolved) {
-    if (!resolved) return;
-    await client.calls(resolved.sellerCall.sid).recordings.create({ recordingChannels: 'dual' });
-  }
-
-  // call site — isCallback branch, resolved once, shared by announce + recording
-  const resolved = await resolveSellerCallOnConnect(client, task_sid);
-  await Promise.all([
-    announceOnSellerConnect(client, context, resolved),
-    startSellerRecordingOnConnect(client, resolved),
-  ]);
-  ```
-
-- **`start-warm-consult.js`** — holds the seller, flips Agent 1's Conference 1 leg to survive Agent 1 leaving, then REST-redirects Agent 1's own call into `/enqueue`.
-
-  ```js
-  const attrs = JSON.parse(task.attributes || '{}');
-  const conferenceSid = attrs.conference?.sid;
-  const sellerCallSid = attrs.conference?.participants?.customer || attrs.call_sid;
-
-  await client.conferences(conferenceSid).participants(sellerCallSid).update({ hold: true });
-  await client.conferences(conferenceSid).participants(agent1CallSid).update({ endConferenceOnExit: false });
-
-  const enqueueUrl =
-    `https://${context.DOMAIN_NAME}/enqueue` +
-    `?originalTaskSid=${encodeURIComponent(taskSid)}` +
-    `&targetQueueSid=${encodeURIComponent(targetQueueSid)}`;
-
-  await client.calls(agent1CallSid).update({ url: enqueueUrl, method: 'GET' });
-  ```
-
-- **`enqueue.js`** — TwiML endpoint that parks Agent 1's redirected leg via `<Enqueue><Task>`, creating Task 2 with `originalTaskSid` and no `isWarmConsult` flag.
-
-  ```js
-  const originalAttrs = JSON.parse(task.attributes || '{}');
-  delete originalAttrs.reservation_attributes;
-  delete originalAttrs.isCallback;
-  delete originalAttrs.outbound_to;
-  delete originalAttrs.direction;
-  delete originalAttrs.originating_case;
-  delete originalAttrs.conference;
-
-  const attributes = {
-    ...originalAttrs,
-    transferTargetQueueSid: targetQueueSid,
-    originalTaskSid,
-    name: `Warm Transfer: ${originalAttrs.seller_name || ''}`,
-  };
-
-  const workflowSid = context.TRANSFER_WORKFLOW_SID || context.WORKFLOW_SID;
-  const enqueue = twiml.enqueue({ workflowSid });
-  enqueue.task({}, JSON.stringify(attributes));
-  ```
-
-- **`complete-warm-consult.js`** — finds Task 2 via `EvaluateTaskAttributes`, flips both Conference 2 participants' `endConferenceOnExit` explicitly (Agent 1 → false, Agent 2 → true), unholds the seller, and redirects the seller's call into Conference 2.
-
-  ```js
-  const consultTasks = await client.taskrouter.v1
-    .workspaces(context.WORKSPACE_SID)
-    .tasks.list({
-      workflowSid,
-      evaluateTaskAttributes: `originalTaskSid == '${originalTaskSid}'`,
-      limit: 1,
-    });
-
-  const task2 = consultTasks[0];
-  const task2Attrs = JSON.parse(task2.attributes || '{}');
-  const conference2Sid = task2Attrs.conference?.sid;
-  const agent1CallSid = task2Attrs.conference?.participants?.customer;
-  const agent2CallSid = task2Attrs.conference?.participants?.worker;
-
-  await client.conferences(conference2Sid).participants(agent1CallSid).update({ endConferenceOnExit: false });
-
-  // Made explicit rather than trusting TaskRouter's own worker-leg default —
-  // see Gotchas.
-  if (agent2CallSid) {
-    await client.conferences(conference2Sid).participants(agent2CallSid).update({ endConferenceOnExit: true });
-  }
-
-  // ... unhold seller in Conference 1, then:
-  const joinUrl = `https://${context.DOMAIN_NAME}/transfer-join-conference?taskSid=${encodeURIComponent(task2.sid)}`;
-  await client.calls(sellerCallSid).update({ url: joinUrl, method: 'GET' });
-  ```
-
-- **`transfer-join-conference.js`** — TwiML endpoint that dials whatever call hits it into the conference named by `event.taskSid`, with `endConferenceOnExit:true`; reused by `complete-warm-consult.js` to move the seller into Conference 2.
-
-  ```js
-  exports.handler = function (context, event, callback) {
-    const twiml = new Twilio.twiml.VoiceResponse();
-    const dial = twiml.dial();
-    dial.conference({ endConferenceOnExit: true }, event.taskSid);
-
-    const response = new Twilio.Response();
-    response.appendHeader('Content-Type', 'text/xml');
-    response.setBody(twiml.toString());
-    return callback(null, response);
-  };
-  ```
-
-- **`TransferMenu.jsx`** — `handleWarm` resolves Agent 1's own CallSid via `GetTaskParticipants` and calls `/start-warm-consult`; `handleCompleteTransfer` calls `/complete-warm-consult` then fires `onWarmComplete`.
-
-  ```js
-  const handleWarm = async (queue) => {
-    const participants = await flexClient.execute(new GetTaskParticipants(taskSid));
-    const self = participants.find((p) => p.type === 'agent');
-    const agent1CallSid = self?.mediaProperties?.callSid;
-    if (!agent1CallSid) throw new Error('Could not resolve own call leg for warm transfer');
-
-    const res = await fetch(`${baseUrl}/start-warm-consult`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskSid, targetQueueSid: queue.queueSid, agent1CallSid }),
-    });
-    // ... setStatus('warm-active')
-  };
-
-  const handleCompleteTransfer = async () => {
-    const res = await fetch(`${baseUrl}/complete-warm-consult`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ originalTaskSid: taskSid }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || 'Complete transfer failed');
-    onWarmComplete?.();
-  };
-  ```
-
-- **`AssociatePanel.jsx`** — plain `call_now` accept branch (unchanged, agnostic to warm-transfer topology) is what both Agent 1's original accept and Agent 2's Task-2 accept go through; `onWarmComplete` disconnects Agent 1's own call and closes the case once `/complete-warm-consult` has already flipped the relevant flags.
-
-  ```js
-  // plain call_now accept — used by both Agent 1 (Task 1) and Agent 2 (Task 2)
-  await pendingReservation.conference({
-    to: `client:${workerIdentity}`,
-    from: import.meta.env.VITE_TWILIO_PHONE_NUMBER,
-  });
-  ```
-
-  ```js
-  onWarmComplete={async () => {
-    // complete-warm-consult.js already flipped Agent 1's Conference 2
-    // participant to endConferenceOnExit:false — safe to disconnect here.
-    try { await voiceCall.call?.disconnect(); } catch (e) { console.warn(e); }
-    onClose(false, { viaWarmTransferComplete: true });
-  }}
-  ```
+- **`initiate-warm-transfer.js`** — adds a new Conference Participant to Conference 1 whose destination is the transfer TwiML Application (carrying `taskSid`/`targetSid`), and holds the seller.
+- **`enqueue.protected.js`** — Voice URL for `TRANSFER_TWIML_APP_SID`; parks the new leg into the transfer workflow's queue via `<Enqueue><Task>`, creating Task 2 with `transferType: 'warm'` and `originalTaskSid`.
+- **`accept-warm-transfer.js`** — intended to bridge Agent 2 into Conference 1 once Task 2 is accepted; the actual bridging REST call is commented out, and so is the frontend call site that would invoke it. What remains live in the handler instead ends Task 2's own auto-created conference (`client.conferences(conferenceSid).update({status: 'completed'})`) — but this handler is currently unreachable since nothing calls it.
+- **`hold-seller.js` / `unhold-seller.js`** — manual hold toggle for the seller; both resolve Conference 1 via `originalTaskSid` when called with Task 2's SID.
+- **`cancel-warm-transfer.js`** — lets Agent 1 back out of a pending (not-yet-accepted) transfer: cancels Task 2, hangs up the parked leg, unholds the seller.
+- **`complete-warm-transfer.js`** — unholds the seller, protects Agent 1's own exit from tearing down the conference, then flips every remaining participant to end-on-exit so the call behaves like a normal 2-party call once Agent 1 leaves.
+- **`PhoneControls.jsx`** — Agent 1's transfer UI: `handleWarmTransfer`, `handleCancelTransfer`, `handleToggleHold`, `handleCompleteTransfer`; tracks `transferInProgress`/`transferAccepted`/`sellerOnHold` client-side state.
+- **`AssociatePanel.jsx`** — Agent 2's `transferType === 'warm'` accept branch: accepts Task 2 natively via `AcceptTask` with `conferenceOptions`, with the `/accept-warm-transfer` call that would complete the bridge commented out.
 
 ## Gotchas & Risks
 
-- **Ambiguous TaskRouter worker-leg default, made explicit.** `leave-conference.js`'s own comment claims a worker leg defaults to `endConferenceOnExit:true`, but live testing showed that relying on this default for Agent 2's Conference 2 participant did not reliably tear the conference down for the seller when Agent 2 hung up first. `complete-warm-consult.js:70-76` now explicitly REST-flips Agent 2's participant to `true` rather than trusting the default — the exact root cause of why the default didn't hold wasn't fully confirmed from docs alone.
-- **`transfer-join-conference.js`'s `endConferenceOnExit` is shared by two call sites with opposite needs.** It's hardcoded `true` (`transfer-join-conference.js:13`), which is correct for its current sole live caller (the seller joining Conference 2 as a plain 2-party call) but would be wrong for the disabled `isWarmConsult` 3-way branch in `AssociatePanel.jsx:267` if that branch were ever re-enabled — Agent 2 leaving a real 3-way consult shouldn't kill the call for the seller and Agent 1. Re-enabling that branch would require re-introducing a parameter instead of the current hardcoded value.
-- **`EvaluateTaskAttributes` string-match lookup has no uniqueness guarantee beyond `limit: 1`.** `complete-warm-consult.js:36-42` takes the first task matching `originalTaskSid == '...'` — if a given Task 1 were ever warm-transferred twice in sequence (e.g., Agent 2 also transfers onward) without Task 2 attributes changing, this could resolve the wrong consult task. Current flow only creates one Task 2 per Task 1 in practice, so this hasn't been hit, but nothing in the code enforces it.
-- **Seller-CallSid resolution is a best-effort poll, not a guarantee.** `resolveSellerCallOnConnect` in `accept-reservation.js:12-55` gives up after 6 attempts / 9 seconds if the seller's leg never reaches `connected`; if that happens, no recording is ever started for that call and the failure is only logged (`console.warn`), not surfaced to the associate UI.
-- **REST-redirecting Agent 1's own WebRTC/Flex-SDK leg** (`start-warm-consult.js:61`, `client.calls(agent1CallSid).update({url, method})`) is reasoned safe by analogy to `transfer-cold.js`'s existing PSTN-leg redirect pattern, but exercises the REST-redirect mechanism against a browser-originated WebRTC call rather than a plain PSTN leg — flagged during design as needing empirical confirmation, and now confirmed working via live testing, but no automated test covers this path.
+- **Agent 2 may never actually join Conference 1's live audio.** `hold-seller.js`, `unhold-seller.js`, and `complete-warm-transfer.js` all operate exclusively on Conference 1 (resolved from Task 1's attributes) and assume Agent 2 is a participant there. But the only code that was meant to put Agent 2 into Conference 1 — the REST bridge in `accept-warm-transfer.js` — is commented out (`accept-warm-transfer.js:31-36`), and the frontend call site that would invoke that endpoint is also commented out (`AssociatePanel.jsx:271-280`). As written, Agent 2's own `AcceptTask` call instead lands Agent 2 in a separate, auto-created Conference 2 alongside the parked leg from `initiate-warm-transfer.js`, with no code currently bridging that back into Conference 1. Whether this is a known work-in-progress or a live bug in this build could not be determined from the code alone.
+- **"Complete Transfer" is never gated on Task 2 actually being accepted.** In `PhoneControls.jsx`, the "Complete Transfer" button renders whenever `transferInProgress` is true (line 232), independent of `transferAccepted`. `transferAccepted` itself is only ever set to `true` inside the `409` branch of `handleCancelTransfer` (line 123) — there is no positive signal from Agent 2 actually accepting Task 2. If Agent 1 clicks "Complete Transfer" before Agent 2 has accepted, `complete-warm-transfer.js` still runs successfully (unholds the seller, flips Agent 1 to `endConferenceOnExit:false`, then disconnects Agent 1 client-side) — leaving the seller alone in a live, non-terminating conference with nobody else connected.
+- **`complete-warm-transfer.js`'s Agent-1-leg resolution has a soft-fail path that skips protecting the conference.** If `taskAttrs.conference?.participants?.worker` is absent and the `agentContactUri` fallback also fails to match any live participant's `to` field (`complete-warm-transfer.js:40-44`), the code logs a warning and skips the `endConferenceOnExit` updates entirely (`complete-warm-transfer.js:66-71`) rather than failing the request — the frontend still proceeds to disconnect Agent 1's own call afterward, which could end the conference for whoever else is on it if their `endConferenceOnExit` was never explicitly set to `false`.
+- **`cancel-warm-transfer.js`'s Task-2 lookup scans up to 50 recent tasks client-attribute-by-client-attribute.** `cancel-warm-transfer.js:47-56` lists the 50 most recently created tasks in the transfer workflow and parses each one's attributes looking for a matching `originalTaskSid` — correct per the comment's stated reasoning (TaskRouter's `EvaluateTaskAttributes` index only covers pending/reserved tasks), but it's an unindexed linear scan that would silently stop finding Task 2 if the workflow's task volume ever pushed the real Task 2 past the 50 most recent.
+- **Seller hold/unhold silently no-ops when `conference.participants.customer` is missing.** `hold-seller.js:43-47` and `unhold-seller.js:43-47` return a `404` in that case, but `PhoneControls.jsx`'s `handleToggleHold` still optimistically flips its own `sellerOnHold` UI state only on a successful response — so a `404` does surface as an error banner, but there's no code path that reconciles the UI state with the seller's real hold status if this ever happens mid-call.
 
 ## Open Questions
 
-- Whether Twilio's `EvaluateTaskAttributes` filter supports operators beyond simple string `==` equality (e.g. for a future need to match multiple candidate consult tasks) hasn't been explored beyond the one operator this code uses.
-- Whether re-enabling the disabled `isWarmConsult` 3-way branch in `AssociatePanel.jsx` is still a live future requirement, or whether it can be deleted outright along with its now-single-purpose caller in `transfer-join-conference.js`, is a product decision not resolved in code.
+- Whether the missing Agent-2-into-Conference-1 bridge (see first Gotcha) is intentional work-in-progress, a reverted experiment, or a live defect in the currently deployed build is not resolvable from the code alone — it depends on what's actually been exercised in a live test call, which is outside this repo.
+- What `TRANSFER_TWIML_APP_SID`'s Voice Application is configured to do beyond pointing at `enqueue.protected.js` (e.g. status callbacks, fallback URL) lives in Twilio Console/API configuration, not in this repo.
+- Whether `transfer-warm.js` and the older `start-warm-consult.js`/`enqueue.js`/`transfer-join-conference.js`/`leave-conference.js`/`end-conference.js` generation are safe to delete outright, or are being kept for a specific rollback plan, is a product/engineering decision not recorded in code.
