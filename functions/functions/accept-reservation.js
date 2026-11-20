@@ -6,9 +6,31 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Flex's SDK bridges the associate + seller into a conference (named by the
 // Task SID) internally for the call_now callback flow — there's no exposed
 // hook to inject TwiML the moment the seller's leg answers. So we poll the
-// live conference for the seller joining, then push a <Say> into it via the
-// Conference "Announce" API. Best-effort: any failure here must not affect
-// the rest of accept-reservation (Airtable update, response).
+// live conference for the seller joining, then push a whole-conference
+// announcement (both the seller AND the associate hear it) via the
+// Conference resource's announceUrl. Best-effort: any failure here must not
+// affect the rest of accept-reservation (Airtable update, response).
+//
+// Twilio layers announceUrl's audio on top of each participant's existing
+// conference mix rather than replacing it — it does not isolate anyone —
+// so if the associate is talking live while this plays, that bleeds into
+// the mix too. We mute the associate for the duration to keep the
+// announcement clean on the seller's end.
+//
+// The earlier version of this unmuted on a fixed timer (unreliable: too
+// short cut the greeting off audibly muted, too long muted the associate
+// into dead air) and a later attempt tried driving the unmute off Conference
+// statusCallbackEvent=announcement — but product confirmed Twilio does not
+// deliver that event for a conference created via TaskRouter's
+// reservation.conference() instruction, which is what Flex's AcceptTask uses
+// to bridge this call, so that callback never fires here.
+//
+// Fix: the TwiML served at announceUrl (call-now-connect-say.js) ends in a
+// <Redirect> to call-now-announcement-done.js (Redirect is one of the few
+// verbs Twilio allows in an announceUrl response, alongside Say/Play/Pause)
+// — Twilio only requests that redirect once the Say/Play audio has actually
+// finished playing, so it's a genuine Twilio-driven "announcement done"
+// signal, not a guess. That's what unmutes the associate.
 async function announceOnSellerConnect(client, context, task_sid) {
   const maxAttempts = 6;
   const delayMs = 1500;
@@ -41,25 +63,43 @@ async function announceOnSellerConnect(client, context, task_sid) {
         participants.map((p) => client.calls(p.callSid).fetch())
       );
       const sellerCall = calls.find((c) => !(c.to || '').startsWith('client:'));
+      const associateCall = calls.find((c) => (c.to || '').startsWith('client:'));
 
       if (!sellerCall) {
         console.warn('[call_now announce] could not identify seller leg for conference', conferenceSid);
         return;
       }
 
-      // Whole-conference announcement (both parties hear it) — kept here in
-      // case we ever need to switch back:
-      // await client.conferences(conferenceSid).update({
-      //   announceUrl: `https://${context.DOMAIN_NAME}/call-now-connect-say`,
+      // Mute the associate before the announcement starts, so their live
+      // voice doesn't bleed into the whole-conference announcement below.
+      // call-now-announcement-done.js (reached via the <Redirect> at the
+      // end of call-now-connect-say.js's TwiML) unmutes them again the
+      // instant Twilio reports the audio actually finished playing — see
+      // header comment above for why this replaced a fixed timer and the
+      // (non-functional, for this conference type) Conference
+      // statusCallbackEvent=announcement.
+      let announceUrl = `https://${context.DOMAIN_NAME}/call-now-connect-say`;
+      if (associateCall) {
+        await client.conferences(conferenceSid).participants(associateCall.sid).update({ muted: true });
+        announceUrl += `?conference_sid=${encodeURIComponent(conferenceSid)}` +
+          `&associate_call_sid=${encodeURIComponent(associateCall.sid)}`;
+      }
+
+      // Whole-conference announcement — both the seller and the (muted)
+      // associate hear it.
+      await client.conferences(conferenceSid).update({
+        announceUrl,
+        announceMethod: 'GET',
+      });
+
+
+      // Participant-level announcement — whispers the <Say>/<Play> to the
+      // seller's leg only; the associate doesn't hear it.
+      // await client.conferences(conferenceSid).participants(sellerCall.sid).update({
+      //   announceUrl,
       //   announceMethod: 'GET',
       // });
 
-      // Participant-level announcement — whispers the <Say> to the seller's
-      // leg only; the associate doesn't hear it.
-      await client.conferences(conferenceSid).participants(sellerCall.sid).update({
-        announceUrl: `https://${context.DOMAIN_NAME}/call-now-connect-say`,
-        announceMethod: 'GET',
-      });
       return;
     }
   }

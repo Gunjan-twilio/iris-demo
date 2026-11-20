@@ -225,24 +225,24 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
     return () => { mounted = false; };
   }, [flexClient]);
 
-  // Countdown timer for pending reservation
-  useEffect(() => {
-    if (!pendingReservation) { clearInterval(countdownRef.current); return; }
-    const res = pendingReservation;
-    countdownRef.current = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) {
-          clearInterval(countdownRef.current);
-          flexClient?.execute(new RejectTask(res.task.sid)).catch(console.error);
-          setPendingReservation(null);
-          setPendingAttrs(null);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(countdownRef.current);
-  }, [pendingReservation]);
+  // // Countdown timer for pending reservation
+  // useEffect(() => {
+  //   if (!pendingReservation) { clearInterval(countdownRef.current); return; }
+  //   const res = pendingReservation;
+  //   countdownRef.current = setInterval(() => {
+  //     setCountdown(c => {
+  //       if (c <= 1) {
+  //         clearInterval(countdownRef.current);
+  //         flexClient?.execute(new RejectTask(res.task.sid)).catch(console.error);
+  //         setPendingReservation(null);
+  //         setPendingAttrs(null);
+  //         return 0;
+  //       }
+  //       return c - 1;
+  //     });
+  //   }, 1000);
+  //   return () => clearInterval(countdownRef.current);
+  // }, [pendingReservation]);
 
   const setAgentActivity = async (name) => {
     if (!worker) return;
@@ -320,7 +320,6 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         // Task already carries outbound_to; AcceptTask triggers the Flex conference bridge
         // to dial the associate first, then dial outbound_to (seller).
         const attrs = { ...pendingAttrs };
-
         setOpenCases(prev => {
           if (prev.find(c => c.case_id === attrs.case_id)) return prev;
           return [...prev, { case_id: attrs.case_id, attrs, taskSid }];
@@ -335,7 +334,18 @@ export default function AssociatePanel({ baseUrl, flexClient }) {
         pendingCallNowCaseIdRef.current = attrs.case_id;
 
         try {
-          await flexClient.execute(new AcceptTask(taskSid));
+          // No conferenceOptions needed here. accept-reservation.js mutes
+          // the associate and plays a whispered announceUrl greeting to the
+          // seller once their leg connects (see announceOnSellerConnect) —
+          // that doesn't need any registration on this AcceptTask call.
+          // (A Conference statusCallbackEvent=announcement registration was
+          // tried here previously to drive the unmute, but product
+          // confirmed Twilio never delivers that event for a conference
+          // created via TaskRouter's reservation.conference() instruction,
+          // which is what AcceptTask uses under the hood — so it's not an
+          // option. accept-reservation.js now unmutes via a <Redirect> at
+          // the end of the announceUrl TwiML instead.)
+          await flexClient.execute(new AcceptTask(taskSid, { conferenceOptions: { endConferenceOnCustomerExit: true, endConferenceOnExit: true } }));
         } catch (err) {
           if (err.message?.includes('conference') || err.code === 48917) {
             console.warn('[Bypassed Non-Critical Exception] Handled media race condition.');

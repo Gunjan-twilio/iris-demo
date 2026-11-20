@@ -105,6 +105,7 @@ exports.handler = async function (context, event, callback) {
     console.log('[send-auto-email] htmlMediaSid:', htmlMediaSid);
     const message = await conv.messages.create({
       author: fromAddress,
+      subject: emailSubject,
       attributes: JSON.stringify({ subject: emailSubject, autoEmail: true }),
       mediaSid: htmlMediaSid,
     });
